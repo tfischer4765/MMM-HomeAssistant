@@ -6,7 +6,7 @@ const Gpio = require('onoff').Gpio;
 module.exports = NodeHelper.create({
   start: function () {
     const self = this;
-    console.log('[MMM-MQTT-HA] Module started');
+    console.log('[MMM-HomeAssistant] Module started');
     this.clients = {};
     this.config = null;
   },
@@ -19,7 +19,7 @@ module.exports = NodeHelper.create({
     });
 
     this.client.on('connect', () => {
-      console.log('[MMM-MQTT-HA] Connected to MQTT');
+      console.log('[MMM-HomeAssistant] Connected to MQTT');
       this.client.subscribe(brightnessTopic);
     });
 
@@ -36,12 +36,12 @@ module.exports = NodeHelper.create({
     this.lightSensor = new Gpio(lightSensorPin, 'in', 'both');
 
     this.pirSensor.watch((err, value) => {
-      if (err) console.error('[MMM-MQTT-HA] PIR sensor error:', err);
+      if (err) console.error('[MMM-HomeAssistant] PIR sensor error:', err);
       this.client.publish(pirTopic, value.toString());
     });
 
     this.lightSensor.watch((err, value) => {
-      if (err) console.error('[MMM-MQTT-HA] Light sensor error:', err);
+      if (err) console.error('[MMM-HomeAssistant] Light sensor error:', err);
       this.client.publish(lightSensorTopic, value.toString());
     });
   },

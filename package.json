@@ -1,8 +1,8 @@
 {
-  "name": "mmm-template",
+  "name": "mmm-homeassistant",
   "version": "1.0.0",
   "description": "[Module description]",
-  "main": "MMM-Template.js",
+  "main": "MMM-HomeAssistant.js",
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -13,9 +13,9 @@
     "url": "git+[GitHub url].git"
   },
   "keywords": [
-    "template"
+    "HomeAssistant"
   ],
-  "author": "[Author]",
+  "author": "Adam Ambarus",
   "license": "MIT",
   "bugs": {
     "url": "[GitHub url]/issues"

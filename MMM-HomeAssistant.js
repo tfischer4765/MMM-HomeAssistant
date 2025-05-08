@@ -1,4 +1,4 @@
-Module.register("MMM-MQTT-HA", {
+Module.register("MMM-HomeAssistant", {
 
   defaults: {
     exampleContent: ""
@@ -14,12 +14,12 @@ Module.register("MMM-MQTT-HA", {
   },
 
   getStyles: function () {
-    return ["MMM-MQTT-HA.css"]; // optional
+    return ["MMM-HomeAssistant.css"]; // optional
   },
 
   getDom: function () {
     const wrapper = document.createElement("div");
-    wrapper.innerHTML = "MQTT-HA Module Active";
+    wrapper.innerHTML = "MMM-HomeAssistant Module Active";
     return wrapper;
   },
 
