@@ -6,7 +6,7 @@ const Gpio = require('onoff').Gpio;
 module.exports = NodeHelper.create({
   start: function () {
     const self = this;
-    console.log('[MMM-HomeAssistant] Module started');
+    console.log('[MMM-HomeAssistant] Module started!');
     this.clients = {};
     this.config = null;
   },

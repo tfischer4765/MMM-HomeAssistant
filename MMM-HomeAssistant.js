@@ -1,10 +1,12 @@
 Module.register("MMM-HomeAssistant", {
 
   defaults: {
-    exampleContent: ""
+    deviceName: "MagicMirror",
+    autodiscoveryTopic: "homeassistant",
   },
 
   start: function () {
+    Log.info('Starting module: ' + this.name);
     this.sendSocketNotification("MQTT_INIT", this.config);
   },
 
