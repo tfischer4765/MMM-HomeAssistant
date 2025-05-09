@@ -1,7 +1,7 @@
 'use strict';
 const NodeHelper = require('node_helper');
 const mqtt = require('mqtt');
-const Gpio = require('onoff').Gpio;
+// const Gpio = require('onoff').Gpio;
 
 module.exports = NodeHelper.create({
   start: function () {
@@ -16,6 +16,11 @@ module.exports = NodeHelper.create({
       throw new Error('[MMM-HomeAssistant] MQTT server URL is missing in the configuration.');
     }
 
+    // Ensure the server URL includes the protocol
+    if (!/^mqtt(s)?:\/\//.test(this.config.mqttServer)) {
+      this.config.mqttServer = `mqtt://${this.config.mqttServer}`;
+    }
+
     const mqttOptions = {
       clientId: this.config.deviceName || `MagicMirror_${Math.random().toString(16).substr(2, 8)}`,
       username: this.config.username || undefined,
@@ -28,7 +33,6 @@ module.exports = NodeHelper.create({
     if (!mqttOptions.password) delete mqttOptions.password;
 
     console.log('[MMM-HomeAssistant] Connecting to MQTT server:', `${this.config.mqttServer}:${mqttOptions.port}`);
-
     this.client = mqtt.connect(this.config.mqttServer, mqttOptions);
 
     this.client.on('connect', () => {
@@ -44,28 +48,28 @@ module.exports = NodeHelper.create({
     });
   },
 
-  initGPIO: function () {
-    this.config.device.filter(device => device.gpio).forEach((device) => {
-      const gpioPin = new Gpio(device.gpio, 'in', 'both');
-      gpioPin.watch((err, value) => {
-        if (err) {
-          console.error(`[MMM-HomeAssistant] Error on GPIO pin ${device.gpio}:`, err);
-          return;
-        }
-        console.log(`[MMM-HomeAssistant] GPIO pin ${device.gpio} value changed to:`, value);
-        this.client.publish(`${this.config.deviceName}/sensor/${device.category}`, value.toString());
-      });
-      console.log(`[MMM-HomeAssistant] Initialized GPIO pin ${device.gpio} for ${device.category} sensor.`);
-    });
-  },
+  // initGPIO: function () {
+  //   this.config.device.filter(device => device.gpio).forEach((device) => {
+  //     const gpioPin = new Gpio(device.gpio, 'in', 'both');
+  //     gpioPin.watch((err, value) => {
+  //       if (err) {
+  //         console.error(`[MMM-HomeAssistant] Error on GPIO pin ${device.gpio}:`, err);
+  //         return;
+  //       }
+  //       console.log(`[MMM-HomeAssistant] GPIO pin ${device.gpio} value changed to:`, value);
+  //       this.client.publish(`${this.config.deviceName}/sensor/${device.category}`, value.toString());
+  //     });
+  //     console.log(`[MMM-HomeAssistant] Initialized GPIO pin ${device.gpio} for ${device.category} sensor.`);
+  //   });
+  // },
 
   socketNotificationReceived: function (notification, payload) {
     if (notification === 'MQTT_INIT') {
       this.config = payload;
       this.connectMQTT();
 
-      if (his.config.device && this.config.device.some(device => device.gpio)) {
-        this.initGPIO();
+      if (this.config.device && this.config.device.some(device => device.gpio)) {
+        // this.initGPIO();
       }
     }
   },

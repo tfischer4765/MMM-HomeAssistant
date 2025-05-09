@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+[GitHub url].git"
+    "url": "git+https://github.com/ambarusa/MMM-HomeAssistant.git"
   },
   "keywords": [
     "HomeAssistant"
@@ -18,9 +18,9 @@
   "author": "Adam Ambarus",
   "license": "MIT",
   "bugs": {
-    "url": "[GitHub url]/issues"
+    "url": "https://github.com/ambarusa/MMM-HomeAssistant/issues"
   },
-  "homepage": "[GitHub url]#readme",
+  "homepage": "https://github.com/ambarusa/MMM-HomeAssistant#readme",
   "devDependencies": {
     "@eslint/js": "^9.10.0",
     "@stylistic/eslint-plugin": "^2.7.2",
@@ -28,7 +28,6 @@
     "globals": "^15.9.0"
   },
   "dependencies": {
-    "mqtt": "^5.12.1",
-    "onoff": "^6.0.3"
+    "mqtt": "^5.12.1"
   }
 }
