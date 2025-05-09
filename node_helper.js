@@ -1,6 +1,9 @@
 'use strict';
 const NodeHelper = require('node_helper');
 const mqtt = require('mqtt');
+const fs = require('fs');
+const path = require('path');
+const si = require('systeminformation');
 // const Gpio = require('onoff').Gpio;
 
 module.exports = NodeHelper.create({
@@ -37,6 +40,9 @@ module.exports = NodeHelper.create({
 
     this.client.on('connect', () => {
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
+
+      // Publish the MQTT device configuration
+      this.publishDeviceConfig();
     });
 
     this.client.on('error', (err) => {
@@ -61,7 +67,35 @@ module.exports = NodeHelper.create({
   //     });
   //     console.log(`[MMM-HomeAssistant] Initialized GPIO pin ${device.gpio} for ${device.category} sensor.`);
   //   });
-  // },
+  publishDeviceConfig: async function () {
+    const autodiscoveryTopic = this.config.autodiscoveryTopic;
+
+    if (!autodiscoveryTopic) {
+      console.error('[MMM-HomeAssistant] Autodiscovery topic is missing in the configuration.');
+      return;
+    }
+
+    try {
+      // Get detailed system information
+      const sys = await si.system();
+      const baseboard = await si.baseboard();
+
+      const deviceConfig = {};
+
+      deviceConfig.identifiers = `${this.config.deviceName.toLowerCase().replace(/\s+/g, '_')}-${si.serial || 'unknown_serial'}`;
+      deviceConfig.name = this.config.deviceName;
+      deviceConfig.manufacturer = sys.manufacturer || baseboard.manufacturer || 'unknown';
+      deviceConfig.model = sys.model || baseboard.model || '';
+      deviceConfig.hardware = baseboard.version || 'unknown';
+
+      const topic = `${autodiscoveryTopic}/${this.config.deviceName}/config`;
+      console.log(deviceConfig)
+      // this.client.publish(topic, JSON.stringify(deviceConfig), { retain: true });
+      console.log('[MMM-HomeAssistant] Published device configuration to:', topic);
+    } catch (err) {
+      console.error('[MMM-HomeAssistant] Failed to publish device configuration:', err);
+    }
+  },
 
   socketNotificationReceived: function (notification, payload) {
     if (notification === 'MQTT_INIT') {
