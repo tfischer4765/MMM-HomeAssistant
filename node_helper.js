@@ -1,8 +1,6 @@
 'use strict';
 const NodeHelper = require('node_helper');
 const mqtt = require('mqtt');
-const fs = require('fs');
-const path = require('path');
 const si = require('systeminformation');
 // const Gpio = require('onoff').Gpio;
 
@@ -12,6 +10,8 @@ module.exports = NodeHelper.create({
     console.log('[MMM-HomeAssistant] Module started!');
     this.clients = {};
     this.config = null;
+
+    this.configTopic = null;
   },
 
   connectMQTT: function () {
@@ -67,12 +67,10 @@ module.exports = NodeHelper.create({
   //     });
   //     console.log(`[MMM-HomeAssistant] Initialized GPIO pin ${device.gpio} for ${device.category} sensor.`);
   //   });
+  
   publishDeviceConfig: async function () {
-    const autodiscoveryTopic = this.config.autodiscoveryTopic;
-
-    if (!autodiscoveryTopic) {
-      console.error('[MMM-HomeAssistant] Autodiscovery topic is missing in the configuration.');
-      return;
+    if (!this.configTopic) {
+      this.configTopic = `${this.config.autodiscoveryTopic}/${this.config.deviceName}/config`;
     }
 
     try {
@@ -80,18 +78,19 @@ module.exports = NodeHelper.create({
       const sys = await si.system();
       const baseboard = await si.baseboard();
 
-      const deviceConfig = {};
+      const configJson = {};
+      configJson.device = {};
+      configJson.device.ids = ['ea334450945afc'];
+      configJson.device.name = this.config.deviceName;
+      configJson.device.mf = sys.manufacturer || baseboard.manufacturer || 'unknown';
+      configJson.device.mdl = sys.model || baseboard.model || '';
+      configJson.device.hw = baseboard.version || 'unknown';
+      configJson.device.sw = global.version;
 
-      deviceConfig.identifiers = `${this.config.deviceName.toLowerCase().replace(/\s+/g, '_')}-${si.serial || 'unknown_serial'}`;
-      deviceConfig.name = this.config.deviceName;
-      deviceConfig.manufacturer = sys.manufacturer || baseboard.manufacturer || 'unknown';
-      deviceConfig.model = sys.model || baseboard.model || '';
-      deviceConfig.hardware = baseboard.version || 'unknown';
+      console.log(configJson);
 
-      const topic = `${autodiscoveryTopic}/${this.config.deviceName}/config`;
-      console.log(deviceConfig)
-      // this.client.publish(topic, JSON.stringify(deviceConfig), { retain: true });
-      console.log('[MMM-HomeAssistant] Published device configuration to:', topic);
+      this.client.publish(this.configTopic, JSON.stringify(configJson), { retain: true });
+      console.log('[MMM-HomeAssistant] Published device configuration to:', this.configTopic);
     } catch (err) {
       console.error('[MMM-HomeAssistant] Failed to publish device configuration:', err);
     }
@@ -100,6 +99,7 @@ module.exports = NodeHelper.create({
   socketNotificationReceived: function (notification, payload) {
     if (notification === 'MQTT_INIT') {
       this.config = payload;
+      this.configTopic = `${this.config.autodiscoveryTopic}/${this.config.deviceName}/config`;
       this.connectMQTT();
 
       if (this.config.device && this.config.device.some(device => device.gpio)) {
