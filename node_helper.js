@@ -12,9 +12,9 @@ module.exports = NodeHelper.create({
     this.config = null;
     this.configTopic = null;
 
-    // Global variables to store monitor and brightness values
-    this.monitorValue = null;
-    this.brightnessValue = null;
+    // Initialize monitor and brightness values with stable defaults
+    this.monitorValue = 'unknown';
+    this.brightnessValue = 0;
 
     // Start watching endpoints
     this.watchEndpoints();
@@ -35,6 +35,12 @@ module.exports = NodeHelper.create({
       username: this.config.username || undefined,
       password: this.config.password || undefined,
       port: this.config.mqttPort || 1883, // Default MQTT port
+      will: {
+        topic: `${this.config.deviceName}/availability`,
+        payload: 'offline',
+        retain: true,
+        qos: 1,
+      },
     };
 
     // Remove undefined properties for anonymous authentication
@@ -50,9 +56,15 @@ module.exports = NodeHelper.create({
       // Publish the MQTT device configuration
       this.publishDeviceConfig();
 
-      // Publish initial values to status and brightness topics
-      this.client.publish(`${this.config.deviceName}/status`, this.monitorValue || 'unknown', { retain: true });
-      this.client.publish(`${this.config.deviceName}/brightness`, this.brightnessValue?.toString() || '0', { retain: true });
+      // Publish initial values to the device topic as JSON
+      const initialPayload = {
+        state: this.monitorValue,
+        brightness: this.brightnessValue,
+      };
+      this.client.publish(`${this.config.deviceName}`, JSON.stringify(initialPayload), { retain: true });
+
+      // Publish birth message to availability topic
+      this.client.publish(`${this.config.deviceName}/availability`, 'online', { retain: true });
 
       // Subscribe to /set topics
       this.subscribeToSetTopics();
@@ -64,29 +76,39 @@ module.exports = NodeHelper.create({
 
     this.client.on('close', () => {
       console.log('[MMM-HomeAssistant] MQTT connection closed.');
+
+      // Publish last will message to availability topic
+      this.client.publish(`${this.config.deviceName}/availability`, 'offline', { retain: true });
     });
   },
 
   subscribeToSetTopics: function () {
-    const statusSetTopic = `${this.config.deviceName}/status/set`;
-    const brightnessSetTopic = `${this.config.deviceName}/brightness/set`;
+    const setTopic = `${this.config.deviceName}/set`;
 
-    this.client.subscribe([statusSetTopic, brightnessSetTopic], (err) => {
+    this.client.subscribe(setTopic, (err) => {
       if (err) {
-        console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
+        console.error('[MMM-HomeAssistant] Failed to subscribe to set topic:', err);
       } else {
-        console.log('[MMM-HomeAssistant] Subscribed to set topics:', statusSetTopic, brightnessSetTopic);
+        console.log('[MMM-HomeAssistant] Subscribed to set topic:', setTopic);
       }
     });
 
     this.client.on('message', async (topic, message) => {
-      const payload = message.toString();
-      console.log(`[MMM-HomeAssistant] Received message on topic ${topic}:`, payload);
+      if (topic === setTopic) {
+        try {
+          const payload = JSON.parse(message.toString());
+          console.log(`[MMM-HomeAssistant] Received message on topic ${topic}:`, payload);
 
-      if (topic === statusSetTopic) {
-        await this.handleStatusSet(payload);
-      } else if (topic === brightnessSetTopic) {
-        await this.handleBrightnessSet(payload);
+          if (payload.state !== undefined) {
+            await this.handleStatusSet(payload.state);
+          }
+
+          if (payload.brightness !== undefined) {
+            await this.handleBrightnessSet(payload.brightness);
+          }
+        } catch (err) {
+          console.error('[MMM-HomeAssistant] Failed to parse JSON payload:', err);
+        }
       }
     });
   },
@@ -205,18 +227,6 @@ module.exports = NodeHelper.create({
         }
         const monitorData = await monitorResponse.json();
 
-        if (monitorData.monitor !== this.monitorValue) {
-          this.monitorValue = monitorData.monitor;
-          console.log('[MMM-HomeAssistant] Monitor state updated:', this.monitorValue);
-
-          // Publish the new monitor value to MQTT if connected
-          if (this.client && this.client.connected) {
-            this.client.publish(`${this.config.deviceName}/status`, this.monitorValue, { retain: true });
-          } else {
-            console.warn('[MMM-HomeAssistant] MQTT client not connected. Monitor value not published.');
-          }
-        }
-
         // Fetch brightness data
         const brightnessResponse = await fetch(brightnessUrl);
         if (!brightnessResponse.ok) {
@@ -225,15 +235,22 @@ module.exports = NodeHelper.create({
         }
         const brightnessData = await brightnessResponse.json();
 
-        if (brightnessData.result !== this.brightnessValue) {
+        if (monitorData.monitor !== this.monitorValue || brightnessData.result !== this.brightnessValue) {
+          this.monitorValue = monitorData.monitor;
           this.brightnessValue = brightnessData.result;
-          console.log('[MMM-HomeAssistant] Brightness value updated:', this.brightnessValue);
 
-          // Publish the new brightness value to MQTT if connected
+          const updatedPayload = {
+            state: this.monitorValue,
+            brightness: this.brightnessValue,
+          };
+
+          console.log('[MMM-HomeAssistant] Updated state:', updatedPayload);
+
+          // Publish the updated state to MQTT as JSON
           if (this.client && this.client.connected) {
-            this.client.publish(`${this.config.deviceName}/brightness`, this.brightnessValue.toString(), { retain: true });
+            this.client.publish(`${this.config.deviceName}`, JSON.stringify(updatedPayload), { retain: true });
           } else {
-            console.warn('[MMM-HomeAssistant] MQTT client not connected. Brightness value not published.');
+            console.warn('[MMM-HomeAssistant] MQTT client not connected. Updated state not published.');
           }
         }
       } catch (err) {
