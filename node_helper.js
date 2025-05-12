@@ -10,14 +10,13 @@ module.exports = NodeHelper.create({
     console.log('[MMM-HomeAssistant] Module started!');
     this.clients = {};
     this.config = null;
-    this.configTopic = null;
 
-    // Initialize monitor and brightness values with stable defaults
+    this.stateTopic = null;
+    this.setTopic = null;
+    this.availabilityTopic = null;
+
     this.monitorValue = 'unknown';
     this.brightnessValue = 0;
-
-    // Start watching endpoints
-    this.watchEndpoints();
   },
 
   connectMQTT: function () {
@@ -36,7 +35,7 @@ module.exports = NodeHelper.create({
       password: this.config.password || undefined,
       port: this.config.mqttPort || 1883, // Default MQTT port
       will: {
-        topic: `${this.config.deviceName}/availability`,
+        topic: this.availabilityTopic,
         payload: 'offline',
         retain: true,
         qos: 1,
@@ -54,17 +53,17 @@ module.exports = NodeHelper.create({
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
       // Publish the MQTT device configuration
-      this.publishDeviceConfig();
+      this.publishConfigs();
 
       // Publish initial values to the device topic as JSON
       const initialPayload = {
         state: this.monitorValue,
         brightness: this.brightnessValue,
       };
-      this.client.publish(`${this.config.deviceName}`, JSON.stringify(initialPayload), { retain: true });
+      this.client.publish(this.stateTopic, JSON.stringify(initialPayload), { retain: true });
 
       // Publish birth message to availability topic
-      this.client.publish(`${this.config.deviceName}/availability`, 'online', { retain: true });
+      this.client.publish(this.availabilityTopic, 'online', { retain: true });
 
       // Subscribe to /set topics
       this.subscribeToSetTopics();
@@ -78,23 +77,21 @@ module.exports = NodeHelper.create({
       console.log('[MMM-HomeAssistant] MQTT connection closed.');
 
       // Publish last will message to availability topic
-      this.client.publish(`${this.config.deviceName}/availability`, 'offline', { retain: true });
+      this.client.publish(this.availabilityTopic, 'offline', { retain: true });
     });
   },
 
   subscribeToSetTopics: function () {
-    const setTopic = `${this.config.deviceName}/set`;
-
-    this.client.subscribe(setTopic, (err) => {
+    this.client.subscribe(this.setTopic, (err) => {
       if (err) {
         console.error('[MMM-HomeAssistant] Failed to subscribe to set topic:', err);
       } else {
-        console.log('[MMM-HomeAssistant] Subscribed to set topic:', setTopic);
+        console.log('[MMM-HomeAssistant] Subscribed to set topic:', this.setTopic);
       }
     });
 
     this.client.on('message', async (topic, message) => {
-      if (topic === setTopic) {
+      if (topic === this.setTopic) {
         try {
           const payload = JSON.parse(message.toString());
           console.log(`[MMM-HomeAssistant] Received message on topic ${topic}:`, payload);
@@ -115,11 +112,6 @@ module.exports = NodeHelper.create({
 
   handleStatusSet: async function (payload) {
     console.log('[MMM-HomeAssistant] Handling status set:', payload);
-    if (!this.moduleAvailable) {
-      console.warn('[MMM-HomeAssistant] MMM-Remote-Control module is offline. Skipping status set operation.');
-      return;
-    }
-
     try {
       const response = await fetch(`http://localhost:8080/api/monitor/${payload}`, {
         method: 'GET',
@@ -144,11 +136,6 @@ module.exports = NodeHelper.create({
 
   handleBrightnessSet: async function (payload) {
     console.log('[MMM-HomeAssistant] Handling brightness set:', payload);
-    if (!this.moduleAvailable) {
-      console.warn('[MMM-HomeAssistant] MMM-Remote-Control module is offline. Skipping brightness set operation.');
-      return;
-    }
-
     try {
       const response = await fetch(`http://localhost:8080/api/brightness/${payload}`, {
         method: 'GET',
@@ -171,39 +158,44 @@ module.exports = NodeHelper.create({
     }
   },
 
-  publishDeviceConfig: async function () {
-    if (!this.configTopic) {
-      this.configTopic = `${this.config.autodiscoveryTopic}/${this.config.deviceName}/config`;
-    }
-
+  publishConfigs: async function () {
     try {
-      // Get detailed system information
-      const sys = await si.system();
-      const baseboard = await si.baseboard();
+        const deviceId = this.config.deviceName.replace(/\s+/g, '_').toLowerCase();
+        const sys = await si.system();
+        const baseboard = await si.baseboard();
 
-      const configJson = {
-        device: {
-          ids: ['ea334450945afc'],
-          name: this.config.deviceName,
-          mf: sys.manufacturer || baseboard.manufacturer || 'unknown',
-          mdl: sys.model || baseboard.model || '',
-          hw: baseboard.version || 'unknown',
-        },
-        sw: global.version,
-        status_topic: `${this.config.deviceName}/status`,
-        brightness_topic: `${this.config.deviceName}/brightness`,
-        command_topics: {
-          status_set: `${this.config.deviceName}/status/set`,
-          brightness_set: `${this.config.deviceName}/brightness/set`,
-        },
-      };
+        const deviceJson = {
+            device: {
+                ids: ['ea334450945afc'],
+                name: this.config.deviceName,
+                mf: sys.manufacturer || baseboard.manufacturer || 'unknown',
+                mdl: sys.model || baseboard.model || '',
+                hw: baseboard.version || 'unknown',
+                sw: global.version,
+            },
+        };
 
-      console.log(configJson);
+        const lightJson = {
+            availability_topic: this.availabilityTopic,
+            command_topic: this.setTopic,
+            brightness: true,
+            brightness_scale: 100,
+            name: this.config.deviceName,
+            object_id: deviceId,
+            schema: "json",
+            state_topic: this.stateTopic,
+            unique_id: deviceId,
+        };
 
-      this.client.publish(this.configTopic, JSON.stringify(configJson), { retain: true });
-      console.log('[MMM-HomeAssistant] Published device configuration to:', this.configTopic);
+        // Publish light configuration to MQTT autodiscovery topic
+        const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/config`;
+
+        const combinedJson = { ...deviceJson, ...lightJson };
+        this.client.publish(lightConfigTopic, JSON.stringify(combinedJson), { retain: true });
+
+        console.log('[MMM-HomeAssistant] Published light config to:', lightConfigTopic);
     } catch (err) {
-      console.error('[MMM-HomeAssistant] Failed to publish device configuration:', err);
+        console.error('[MMM-HomeAssistant] Failed to publish light configuration:', err);
     }
   },
 
@@ -235,7 +227,7 @@ module.exports = NodeHelper.create({
           this.brightnessValue = brightnessData.result;
 
           const updatedPayload = {
-            state: this.monitorValue,
+            state: this.monitorValue.toUpperCase(),
             brightness: this.brightnessValue,
           };
 
@@ -243,7 +235,7 @@ module.exports = NodeHelper.create({
 
           // Publish the updated state to MQTT as JSON
           if (this.client && this.client.connected) {
-            this.client.publish(`${this.config.deviceName}`, JSON.stringify(updatedPayload), { retain: true });
+            this.client.publish(this.stateTopic, JSON.stringify(updatedPayload), { retain: true });
           } else {
             console.warn('[MMM-HomeAssistant] MQTT client not connected. Updated state not published.');
           }
@@ -260,7 +252,10 @@ module.exports = NodeHelper.create({
   socketNotificationReceived: function (notification, payload) {
     if (notification === 'MQTT_INIT') {
       this.config = payload;
-      this.configTopic = `${this.config.autodiscoveryTopic}/${this.config.deviceName}/config`;
+      this.stateTopic = this.config.deviceName;
+      this.setTopic = `${this.config.deviceName}/set`;
+      this.availabilityTopic = `${this.config.deviceName}/availability`;
+      this.watchEndpoints();
       this.connectMQTT();
 
       if (this.config.device && this.config.device.some(device => device.gpio)) {

@@ -1,7 +1,7 @@
 Module.register("MMM-HomeAssistant", {
 
   defaults: {
-    deviceName: "MagicMirror",
+    deviceName: "My MagicMirror",
     autodiscoveryTopic: "homeassistant",
     mqttServer: "mqtt://localhost",
     mqttPort: 1883,
