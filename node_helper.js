@@ -127,9 +127,16 @@ module.exports = NodeHelper.create({
 
       if (!response.ok) {
         console.error('[MMM-HomeAssistant] Failed to update monitor status:', response.statusText);
-      } else {
-        console.log('[MMM-HomeAssistant] Monitor status updated successfully.');
+        return;
       }
+
+      const responseData = await response.json();
+      if (!responseData.success) {
+        console.error('[MMM-HomeAssistant] Monitor status update failed. Success flag is false:', responseData);
+        return;
+      }
+
+      console.log('[MMM-HomeAssistant] Monitor status updated successfully.');
     } catch (err) {
       console.error('[MMM-HomeAssistant] Error updating monitor status:', err);
     }
@@ -149,9 +156,16 @@ module.exports = NodeHelper.create({
 
       if (!response.ok) {
         console.error('[MMM-HomeAssistant] Failed to update brightness:', response.statusText);
-      } else {
-        console.log('[MMM-HomeAssistant] Brightness updated successfully.');
+        return;
       }
+
+      const responseData = await response.json();
+      if (!responseData.success) {
+        console.error('[MMM-HomeAssistant] Brightness update failed. Success flag is false:', responseData);
+        return;
+      }
+
+      console.log('[MMM-HomeAssistant] Brightness updated successfully.');
     } catch (err) {
       console.error('[MMM-HomeAssistant] Error updating brightness:', err);
     }
@@ -274,6 +288,12 @@ module.exports = NodeHelper.create({
       if (this.config.device && this.config.device.some(device => device.gpio)) {
         // this.initGPIO();
       }
+    }
+  },
+
+  notificationReceived: function (notification, payload, sender) {
+    if (notification === "DOM_OBJECTS_CREATED") {
+      console.log(MM.getModules());
     }
   },
 });
