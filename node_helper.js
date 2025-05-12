@@ -210,27 +210,8 @@ module.exports = NodeHelper.create({
   watchEndpoints: function () {
     const monitorUrl = 'http://localhost:8080/api/monitor';
     const brightnessUrl = 'http://localhost:8080/api/brightness';
-    const availabilityUrl = 'http://localhost:8080/api/test'; // Endpoint to check module availability
-
-    let moduleAvailable = false; // Track module availability
-
-    const checkAvailability = async () => {
-      try {
-        const response = await fetch(availabilityUrl);
-        moduleAvailable = response.ok;
-        if (!moduleAvailable) {
-          console.warn('[MMM-HomeAssistant] MMM-Remote-Control module is offline. Skipping polling.');
-        }
-      } catch (err) {
-        moduleAvailable = false;
-        console.warn('[MMM-HomeAssistant] Failed to check MMM-Remote-Control availability:', err);
-      }
-    };
-
+    
     const fetchAndCompare = async () => {
-      if (!moduleAvailable) {
-        return; // Skip polling if the module is offline
-      }
 
       try {
         // Fetch monitor data
@@ -272,9 +253,6 @@ module.exports = NodeHelper.create({
       }
     };
 
-    // Check availability every 5 seconds
-    setInterval(checkAvailability, 5000);
-
     // Poll every 1 second
     setInterval(fetchAndCompare, 1000);
   },
@@ -288,12 +266,6 @@ module.exports = NodeHelper.create({
       if (this.config.device && this.config.device.some(device => device.gpio)) {
         // this.initGPIO();
       }
-    }
-  },
-
-  notificationReceived: function (notification, payload, sender) {
-    if (notification === "DOM_OBJECTS_CREATED") {
-      console.log(MM.getModules());
     }
   },
 });

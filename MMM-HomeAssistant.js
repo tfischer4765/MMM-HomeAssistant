@@ -9,7 +9,6 @@ Module.register("MMM-HomeAssistant", {
 
   start: function () {
     Log.info('Starting module: ' + this.name);
-    this.sendSocketNotification("MQTT_INIT", this.config);
   },
 
   setScreenBrightness: function (value) {
@@ -31,6 +30,12 @@ Module.register("MMM-HomeAssistant", {
     if (notification === "SET_BRIGHTNESS") {
       const brightness = parseInt(payload, 10);
       this.setScreenBrightness(brightness);
+    }
+  },
+
+  notificationReceived: function (notification, payload, sender) {
+    if (notification === "DOM_OBJECTS_CREATED") {
+      this.sendSocketNotification("MQTT_INIT", this.config);
     }
   },
 })
