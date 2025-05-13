@@ -26,6 +26,22 @@ Module.register("MMM-HomeAssistant", {
     return wrapper;
   },
 
+  sendModules() {
+    const modules = MM.getModules();
+    const currentModuleData = [];
+    modules.enumerate((module) => {
+      const modData = {...module.data};
+      modData.hidden = module.hidden;
+      modData.lockStrings = module.lockStrings;
+      modData.urlPath = module.name.replace(/MMM-/g, "").replace(/-/g, "").toLowerCase();
+      modData.config = module.config;
+      const modPrototype = Object.getPrototypeOf(module);
+      modData.defaults = modPrototype.defaults;
+      currentModuleData.push(modData);
+    });
+    this.sendSocketNotification("MODULES", currentModuleData);
+  }
+
   socketNotificationReceived: function (notification, payload) {
     if (notification === "SET_BRIGHTNESS") {
       const brightness = parseInt(payload, 10);
@@ -36,6 +52,7 @@ Module.register("MMM-HomeAssistant", {
   notificationReceived: function (notification, payload, sender) {
     if (notification === "DOM_OBJECTS_CREATED") {
       this.sendSocketNotification("MQTT_INIT", this.config);
+      sendModules();
     }
   },
 })
