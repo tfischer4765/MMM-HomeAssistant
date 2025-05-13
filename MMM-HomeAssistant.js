@@ -11,11 +11,6 @@ Module.register("MMM-HomeAssistant", {
     Log.info('Starting module: ' + this.name);
   },
 
-  setScreenBrightness: function (value) {
-    // Your logic to change screen brightness on the Pi
-    console.log("Setting screen brightness to", value);
-  },
-
   getStyles: function () {
     return ["MMM-HomeAssistant.css"]; // optional
   },
@@ -27,32 +22,23 @@ Module.register("MMM-HomeAssistant", {
   },
 
   sendModules() {
-    const modules = MM.getModules();
+    const modules = MM.getModules().exceptModule(this).exceptWithClass("MMM-Remote-Control");
     const currentModuleData = [];
     modules.enumerate((module) => {
-      const modData = {...module.data};
-      modData.hidden = module.hidden;
-      modData.lockStrings = module.lockStrings;
-      modData.urlPath = module.name.replace(/MMM-/g, "").replace(/-/g, "").toLowerCase();
-      modData.config = module.config;
-      const modPrototype = Object.getPrototypeOf(module);
-      modData.defaults = modPrototype.defaults;
-      currentModuleData.push(modData);
+      console.log("Module: ", module);
+      const entry = {};
+      entry.hidden = module.hidden;
+      entry.name = module.name.replace(/MMM-/g, "").replace(/-/g, "");
+      entry.urlPath = entry.name.toLowerCase();
+      currentModuleData.push(entry);
     });
     this.sendSocketNotification("MODULES", currentModuleData);
-  }
-
-  socketNotificationReceived: function (notification, payload) {
-    if (notification === "SET_BRIGHTNESS") {
-      const brightness = parseInt(payload, 10);
-      this.setScreenBrightness(brightness);
-    }
   },
 
   notificationReceived: function (notification, payload, sender) {
     if (notification === "DOM_OBJECTS_CREATED") {
       this.sendSocketNotification("MQTT_INIT", this.config);
-      sendModules();
+      this.sendModules();
     }
   },
 })

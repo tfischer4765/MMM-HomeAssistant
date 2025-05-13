@@ -160,49 +160,49 @@ module.exports = NodeHelper.create({
 
   publishConfigs: async function () {
     try {
-        const deviceId = this.config.deviceName.replace(/\s+/g, '_').toLowerCase();
-        const sys = await si.system();
-        const baseboard = await si.baseboard();
+      const deviceId = this.config.deviceName.replace(/\s+/g, '_').toLowerCase();
+      const sys = await si.system();
+      const baseboard = await si.baseboard();
 
-        const deviceJson = {
-            device: {
-                ids: ['ea334450945afc'],
-                name: this.config.deviceName,
-                mf: sys.manufacturer || baseboard.manufacturer || 'unknown',
-                mdl: sys.model || baseboard.model || '',
-                hw: baseboard.version || 'unknown',
-                sw: global.version,
-            },
-        };
+      const deviceJson = {
+        device: {
+          ids: ['ea334450945afc'],
+          name: this.config.deviceName,
+          mf: sys.manufacturer || baseboard.manufacturer || 'unknown',
+          mdl: sys.model || baseboard.model || '',
+          hw: baseboard.version || 'unknown',
+          sw: global.version,
+        },
+      };
 
-        const lightJson = {
-            availability_topic: this.availabilityTopic,
-            command_topic: this.setTopic,
-            brightness: true,
-            brightness_scale: 100,
-            name: this.config.deviceName,
-            object_id: deviceId,
-            schema: "json",
-            state_topic: this.stateTopic,
-            unique_id: deviceId,
-        };
+      const lightJson = {
+        availability_topic: this.availabilityTopic,
+        command_topic: this.setTopic,
+        brightness: true,
+        brightness_scale: 100,
+        name: this.config.deviceName,
+        object_id: deviceId,
+        schema: "json",
+        state_topic: this.stateTopic,
+        unique_id: deviceId,
+      };
 
-        // Publish light configuration to MQTT autodiscovery topic
-        const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/config`;
+      // Publish light configuration to MQTT autodiscovery topic
+      const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/config`;
 
-        const combinedJson = { ...deviceJson, ...lightJson };
-        this.client.publish(lightConfigTopic, JSON.stringify(combinedJson), { retain: true });
+      const combinedJson = { ...deviceJson, ...lightJson };
+      this.client.publish(lightConfigTopic, JSON.stringify(combinedJson), { retain: true });
 
-        console.log('[MMM-HomeAssistant] Published light config to:', lightConfigTopic);
+      console.log('[MMM-HomeAssistant] Published light config to:', lightConfigTopic);
     } catch (err) {
-        console.error('[MMM-HomeAssistant] Failed to publish light configuration:', err);
+      console.error('[MMM-HomeAssistant] Failed to publish light configuration:', err);
     }
   },
 
   watchEndpoints: function () {
     const monitorUrl = 'http://localhost:8080/api/monitor';
     const brightnessUrl = 'http://localhost:8080/api/brightness';
-    
+
     const fetchAndCompare = async () => {
 
       try {
@@ -262,5 +262,9 @@ module.exports = NodeHelper.create({
         // this.initGPIO();
       }
     }
+
+    if (notification === 'MODULES')
+      console.log('[MMM-HomeAssistant] Received modules data:', payload);
+
   },
 });
