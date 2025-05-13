@@ -6,7 +6,6 @@ const si = require('systeminformation');
 
 module.exports = NodeHelper.create({
   start: function () {
-    const self = this;
     console.log('[MMM-HomeAssistant] Module started!');
     this.clients = {};
 
@@ -55,10 +54,13 @@ module.exports = NodeHelper.create({
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
       // Publish initial values to the device topic as JSON
-      const initialPayload = {
-        state: this.monitorValue,
-        brightness: this.brightnessValue,
-      };
+      const initialPayload = {};
+      initialPayload.state = this.monitorValue;
+      initialPayload.brightness = this.brightnessValue;
+      this.modules.enumerate((element) => {
+        initialPayload[element.urlPath] = element.hidden;
+      });
+
       this.client.publish(this.stateTopic, JSON.stringify(initialPayload), { retain: true });
 
       // Publish birth message to availability topic
@@ -102,6 +104,12 @@ module.exports = NodeHelper.create({
           if (payload.brightness !== undefined) {
             await this.handleBrightnessSet(payload.brightness);
           }
+
+          this.modules.enumerate(async (element) => {
+            if (payload.hasOwnProperty(element.urlPath)) {
+              await this.handleModuleSet(element.urlPath, payload);
+            }
+          });
         } catch (err) {
           console.error('[MMM-HomeAssistant] Failed to parse JSON payload:', err);
         }
@@ -157,6 +165,30 @@ module.exports = NodeHelper.create({
     }
   },
 
+  handleModuleSet: async function (moduleName, payload) {
+    console.log(`[MMM-HomeAssistant] Handling module set for ${moduleName} with payload:`, payload);
+    try {
+      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/set`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        console.error(`[MMM-HomeAssistant] Failed to set module ${moduleName}:`, response.statusText);
+        return;
+      }
+
+      const responseData = await response.json();
+      if (!responseData.success) {
+        console.error(`[MMM-HomeAssistant] Module set operation failed for ${moduleName}. Success flag is false:`, responseData);
+        return;
+      }
+
+      console.log(`[MMM-HomeAssistant] Module ${moduleName} set operation completed successfully.`);
+    } catch (err) {
+      console.error(`[MMM-HomeAssistant] Error setting module ${moduleName}:`, err);
+    }
+  },
+
   publishConfigs: async function () {
     try {
       const deviceId = this.config.deviceName.replace(/\s+/g, '_').toLowerCase();
@@ -189,19 +221,32 @@ module.exports = NodeHelper.create({
         unique_id: deviceId,
       };
 
-      modules.forEach(element => {
-        const switchJson = {
-          
-        }
-      });
-
       // Publish light configuration to MQTT autodiscovery topic
       const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/display/config`;
-
       const combinedJson = { ...deviceJson, ...lightJson };
-      this.client.publish(lightConfigTopic, JSON.stringify(combinedJson), { retain: true });
 
-      console.log('[MMM-HomeAssistant] Published light config to:', lightConfigTopic);
+      topics.push(lightConfigTopic);
+      payloads.push(JSON.stringify(combinedJson));
+
+      modules.forEach(element => {
+        const switchJson = {
+          schema: "json",
+          value_template: "{{ value_json.${element.urlPath} }}",
+          name: null,
+          object_id: element.urlPath,
+          command_topic: this.setTopic,
+        }
+
+        topics.push(`${this.config.autodiscoveryTopic}/switch/${deviceId}/${element.urlPath}/config`);
+        payloads.push(JSON.stringify({ ...deviceJson, ...switchJson }));
+      });
+
+      topics.forEach((topic, index) => {
+        const payload = payloads[index];
+        this.client.publish(topic, payload, { retain: true });
+        console.log('[MMM-HomeAssistant] Published config to:', topic);
+      });
+
     } catch (err) {
       console.error('[MMM-HomeAssistant] Failed to publish light configuration:', err);
     }
@@ -274,7 +319,6 @@ module.exports = NodeHelper.create({
     if (notification === 'MODULES') {
       this.modules = payload;
       console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
-      this.publishConfigs();
     }
   },
 });
