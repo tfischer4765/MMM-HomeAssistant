@@ -9,7 +9,9 @@ module.exports = NodeHelper.create({
     const self = this;
     console.log('[MMM-HomeAssistant] Module started!');
     this.clients = {};
+
     this.config = null;
+    this.modules = null;
 
     this.stateTopic = null;
     this.setTopic = null;
@@ -51,9 +53,6 @@ module.exports = NodeHelper.create({
 
     this.client.on('connect', () => {
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
-
-      // Publish the MQTT device configuration
-      this.publishConfigs();
 
       // Publish initial values to the device topic as JSON
       const initialPayload = {
@@ -175,6 +174,9 @@ module.exports = NodeHelper.create({
         },
       };
 
+      const topics = [];
+      const payloads = [];
+
       const lightJson = {
         availability_topic: this.availabilityTopic,
         command_topic: this.setTopic,
@@ -187,8 +189,14 @@ module.exports = NodeHelper.create({
         unique_id: deviceId,
       };
 
+      modules.forEach(element => {
+        const switchJson = {
+          
+        }
+      });
+
       // Publish light configuration to MQTT autodiscovery topic
-      const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/config`;
+      const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/display/config`;
 
       const combinedJson = { ...deviceJson, ...lightJson };
       this.client.publish(lightConfigTopic, JSON.stringify(combinedJson), { retain: true });
@@ -263,8 +271,10 @@ module.exports = NodeHelper.create({
       }
     }
 
-    if (notification === 'MODULES')
-      console.log('[MMM-HomeAssistant] Received modules data:', payload);
-
+    if (notification === 'MODULES') {
+      this.modules = payload;
+      console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
+      this.publishConfigs();
+    }
   },
 });

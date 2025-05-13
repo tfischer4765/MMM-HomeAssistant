@@ -37,8 +37,8 @@ Module.register("MMM-HomeAssistant", {
 
   notificationReceived: function (notification, payload, sender) {
     if (notification === "DOM_OBJECTS_CREATED") {
-      this.sendSocketNotification("MQTT_INIT", this.config);
       this.sendModules();
+      this.sendSocketNotification("MQTT_INIT", this.config);
     }
   },
 })
