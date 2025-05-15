@@ -53,15 +53,7 @@ module.exports = NodeHelper.create({
     this.client.on('connect', () => {
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
-      // Publish initial values to the device topic as JSON
-      const initialPayload = {};
-      initialPayload.state = this.monitorValue;
-      initialPayload.brightness = this.brightnessValue;
-      this.modules.enumerate((element) => {
-        initialPayload[element.urlPath] = element.hidden;
-      });
-
-      this.client.publish(this.stateTopic, JSON.stringify(initialPayload), { retain: true });
+      this.publishStates()
 
       // Publish birth message to availability topic
       this.client.publish(this.availabilityTopic, 'online', { retain: true });
@@ -82,7 +74,7 @@ module.exports = NodeHelper.create({
     });
   },
 
-  subscribeToSetTopics: function () {
+  subscribeToSetTopic: function () {
     this.client.subscribe(this.setTopic, (err) => {
       if (err) {
         console.error('[MMM-HomeAssistant] Failed to subscribe to set topic:', err);
@@ -97,19 +89,22 @@ module.exports = NodeHelper.create({
           const payload = JSON.parse(message.toString());
           console.log(`[MMM-HomeAssistant] Received message on topic ${topic}:`, payload);
 
-          if (payload.state !== undefined) {
+          if ((this.config.brightnessControl || this.config.monitorControl) &&
+            payload.state !== undefined) {
             await this.handleStatusSet(payload.state);
           }
 
-          if (payload.brightness !== undefined) {
+          if (this.config.brightnessControl && payload.brightness !== undefined) {
             await this.handleBrightnessSet(payload.brightness);
           }
 
-          this.modules.enumerate(async (element) => {
-            if (payload.hasOwnProperty(element.urlPath)) {
-              await this.handleModuleSet(element.urlPath, payload);
-            }
-          });
+          if (this.config.moduleControl) {
+            this.modules.enumerate(async (element) => {
+              if (payload.hasOwnProperty(element.urlPath)) {
+                await this.handleModuleSet(element.urlPath, payload);
+              }
+            });
+          }
         } catch (err) {
           console.error('[MMM-HomeAssistant] Failed to parse JSON payload:', err);
         }
@@ -166,9 +161,9 @@ module.exports = NodeHelper.create({
   },
 
   handleModuleSet: async function (moduleName, payload) {
-    console.log(`[MMM-HomeAssistant] Handling module set for ${moduleName} with payload:`, payload);
+    console.log(`[MMM-HomeAssistant] Handling module set for ${moduleName}:`, payload);
     try {
-      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/set`, {
+      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/${payload}`, {
         method: 'GET',
       });
 
@@ -209,37 +204,42 @@ module.exports = NodeHelper.create({
       const topics = [];
       const payloads = [];
 
-      const lightJson = {
-        availability_topic: this.availabilityTopic,
-        command_topic: this.setTopic,
-        brightness: true,
-        brightness_scale: 100,
-        name: this.config.deviceName,
-        object_id: deviceId,
-        schema: "json",
-        state_topic: this.stateTopic,
-        unique_id: deviceId,
-      };
-
-      // Publish light configuration to MQTT autodiscovery topic
-      const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/display/config`;
-      const combinedJson = { ...deviceJson, ...lightJson };
-
-      topics.push(lightConfigTopic);
-      payloads.push(JSON.stringify(combinedJson));
-
-      modules.forEach(element => {
-        const switchJson = {
-          schema: "json",
-          value_template: "{{ value_json.${element.urlPath} }}",
-          name: null,
-          object_id: element.urlPath,
+      // Light entity is added if monitorControl or brightnessControl is enabled
+      if (this.config.monitorControl || this.config.brightnessControl) {
+        const lightJson = {
+          availability_topic: this.availabilityTopic,
           command_topic: this.setTopic,
-        }
+          brightness: this.config.brightnessControl,
+          brightness_scale: 100,
+          name: this.config.deviceName,
+          object_id: deviceId,
+          schema: "json",
+          state_topic: this.stateTopic,
+          unique_id: deviceId,
+        };
 
-        topics.push(`${this.config.autodiscoveryTopic}/switch/${deviceId}/${element.urlPath}/config`);
-        payloads.push(JSON.stringify({ ...deviceJson, ...switchJson }));
-      });
+        // Publish light configuration to MQTT autodiscovery topic
+        const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/display/config`;
+        const combinedJson = { ...deviceJson, ...lightJson };
+
+        topics.push(lightConfigTopic);
+        payloads.push(JSON.stringify(combinedJson));
+      }
+
+      if (this.config.moduleControl) {
+        modules.forEach(element => {
+          const switchJson = {
+            schema: "json",
+            value_template: "{{ value_json.${element.urlPath} }}",
+            name: null,
+            object_id: element.urlPath,
+            command_topic: this.setTopic,
+          }
+          topics.push(`${this.config.autodiscoveryTopic}/switch/${deviceId}/${element.urlPath}/config`);
+          payloads.push(JSON.stringify({ ...deviceJson, ...switchJson }));
+        });
+      }
+
 
       topics.forEach((topic, index) => {
         const payload = payloads[index];
@@ -252,12 +252,29 @@ module.exports = NodeHelper.create({
     }
   },
 
+  publishStates: function () {
+    // Publish initial values to the device topic as JSON
+    const payload = {};
+    if (this.config.brightnessControl || this.config.monitorControl) {
+      payload.state = this.monitorValue;
+    }
+    if (this.config.brightnessControl) {
+      payload.brightness = this.brightnessValue;
+    }
+    if (this.config.monitorControl) {
+      this.modules.enumerate((element) => {
+        payload[element.urlPath] = element.hidden;
+      });
+    }
+    console.log('[MMM-HomeAssistant] Updated state:', payload);
+    this.client.publish(this.stateTopic, JSON.stringify(payload), { retain: true });
+  },
+
   watchEndpoints: function () {
     const monitorUrl = 'http://localhost:8080/api/monitor';
     const brightnessUrl = 'http://localhost:8080/api/brightness';
 
-    const fetchAndCompare = async () => {
-
+    const fetchDisplayData = async () => {
       try {
         // Fetch monitor data
         const monitorResponse = await fetch(monitorUrl);
@@ -275,20 +292,13 @@ module.exports = NodeHelper.create({
         }
         const brightnessData = await brightnessResponse.json();
 
-        if (monitorData.monitor !== this.monitorValue || brightnessData.result !== this.brightnessValue) {
+        if (monitorData.monitor.toUpperCase() !== this.monitorValue || brightnessData.result !== this.brightnessValue) {
           this.monitorValue = monitorData.monitor;
           this.brightnessValue = brightnessData.result;
 
-          const updatedPayload = {
-            state: this.monitorValue.toUpperCase(),
-            brightness: this.brightnessValue,
-          };
-
-          console.log('[MMM-HomeAssistant] Updated state:', updatedPayload);
-
           // Publish the updated state to MQTT as JSON
           if (this.client && this.client.connected) {
-            this.client.publish(this.stateTopic, JSON.stringify(updatedPayload), { retain: true });
+            this.publishStates();
           } else {
             console.warn('[MMM-HomeAssistant] MQTT client not connected. Updated state not published.');
           }
