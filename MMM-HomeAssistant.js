@@ -25,7 +25,6 @@ Module.register("MMM-HomeAssistant", {
     const modules = MM.getModules().exceptModule(this).exceptWithClass("MMM-Remote-Control");
     const currentModuleData = [];
     modules.enumerate((module) => {
-      console.log("Module: ", module);
       const entry = {};
       entry.hidden = module.hidden;
       entry.name = module.name.replace(/MMM-/g, "").replace(/-/g, "");

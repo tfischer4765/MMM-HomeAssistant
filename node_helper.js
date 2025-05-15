@@ -59,7 +59,7 @@ module.exports = NodeHelper.create({
       this.client.publish(this.availabilityTopic, 'online', { retain: true });
 
       // Subscribe to /set topics
-      this.subscribeToSetTopics();
+      this.subscribeToSetTopic();
     });
 
     this.client.on('error', (err) => {
@@ -99,11 +99,15 @@ module.exports = NodeHelper.create({
           }
 
           if (this.config.moduleControl) {
-            this.modules.enumerate(async (element) => {
-              if (payload.hasOwnProperty(element.urlPath)) {
-                await this.handleModuleSet(element.urlPath, payload);
-              }
-            });
+            if (Array.isArray(this.modules)) {
+              this.modules.forEach((element) => {
+                if (payload.hasOwnProperty(element.urlPath)) {
+                  this.handleModuleSet(element.urlPath, payload);
+                }
+              });
+            } else {
+              console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
+            }
           }
         } catch (err) {
           console.error('[MMM-HomeAssistant] Failed to parse JSON payload:', err);
@@ -261,8 +265,8 @@ module.exports = NodeHelper.create({
     if (this.config.brightnessControl) {
       payload.brightness = this.brightnessValue;
     }
-    if (this.config.monitorControl) {
-      this.modules.enumerate((element) => {
+    if (this.config.moduleControl) {
+      this.modules.forEach(element => {
         payload[element.urlPath] = element.hidden;
       });
     }
@@ -271,30 +275,33 @@ module.exports = NodeHelper.create({
   },
 
   watchEndpoints: function () {
-    const monitorUrl = 'http://localhost:8080/api/monitor';
-    const brightnessUrl = 'http://localhost:8080/api/brightness';
+    const fetchData = async (url, elementKey) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`[MMM-HomeAssistant] API not available yet for ${url}. Retrying...`);
+          return null;
+        }
+        const data = await response.json();
+        if (!data.success) {
+          console.error(`[MMM-HomeAssistant] API call to ${url} failed. Success flag is false:`, data);
+          return null;
+        }
+        return data[elementKey];
+      } catch (err) {
+        console.error(`[MMM-HomeAssistant] Error fetching data from ${url}:`, err);
+        return null;
+      }
+    };
 
     const fetchDisplayData = async () => {
-      try {
-        // Fetch monitor data
-        const monitorResponse = await fetch(monitorUrl);
-        if (!monitorResponse.ok) {
-          console.warn('[MMM-HomeAssistant] Monitor API not available yet. Retrying...');
-          return;
-        }
-        const monitorData = await monitorResponse.json();
+      const monitorData = await fetchData('http://localhost:8080/api/monitor', 'monitor');
+      const brightnessData = await fetchData('http://localhost:8080/api/brightness', 'result');
 
-        // Fetch brightness data
-        const brightnessResponse = await fetch(brightnessUrl);
-        if (!brightnessResponse.ok) {
-          console.warn('[MMM-HomeAssistant] Brightness API not available yet. Retrying...');
-          return;
-        }
-        const brightnessData = await brightnessResponse.json();
-
-        if (monitorData.monitor.toUpperCase() !== this.monitorValue || brightnessData.result !== this.brightnessValue) {
-          this.monitorValue = monitorData.monitor;
-          this.brightnessValue = brightnessData.result;
+      if (monitorData && brightnessData) {
+        if (monitorData.toUpperCase() !== this.monitorValue || brightnessData !== this.brightnessValue) {
+          this.monitorValue = monitorData.toUpperCase();
+          this.brightnessValue = brightnessData;
 
           // Publish the updated state to MQTT as JSON
           if (this.client && this.client.connected) {
@@ -303,13 +310,27 @@ module.exports = NodeHelper.create({
             console.warn('[MMM-HomeAssistant] MQTT client not connected. Updated state not published.');
           }
         }
-      } catch (err) {
-        console.error('[MMM-HomeAssistant] Error fetching endpoint data:', err);
+      }
+
+      if (Array.isArray(this.modules)) {
+        for (const module of this.modules) {
+          const url = `http://localhost:8080/api/${module.urlPath}`;
+          const data = await fetchData(url, module.urlPath);
+
+          if (data !== null) {
+            console.log(`[MMM-HomeAssistant] Fetched data for module ${module.urlPath}:`, data);
+            // Handle the fetched data as needed, e.g., update state or publish to MQTT
+          } else {
+            console.warn(`[MMM-HomeAssistant] No data returned for module ${module.urlPath}`);
+          }
+        }
+      } else {
+        console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
       }
     };
 
     // Poll every 1 second
-    setInterval(fetchAndCompare, 1000);
+    setInterval(fetchDisplayData, 1000);
   },
 
   socketNotificationReceived: function (notification, payload) {
