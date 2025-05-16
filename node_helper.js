@@ -295,6 +295,8 @@ module.exports = NodeHelper.create({
     };
 
     const fetchDisplayData = async () => {
+      let publishNeeded = false; // Flag to determine if states need to be published
+
       const monitorData = await fetchData('http://localhost:8080/api/monitor', 'monitor');
       const brightnessData = await fetchData('http://localhost:8080/api/brightness', 'result');
 
@@ -302,30 +304,30 @@ module.exports = NodeHelper.create({
         if (monitorData.toUpperCase() !== this.monitorValue || brightnessData !== this.brightnessValue) {
           this.monitorValue = monitorData.toUpperCase();
           this.brightnessValue = brightnessData;
-
-          // Publish the updated state to MQTT as JSON
-          if (this.client && this.client.connected) {
-            this.publishStates();
-          } else {
-            console.warn('[MMM-HomeAssistant] MQTT client not connected. Updated state not published.');
-          }
+          publishNeeded = true; // Set flag if monitor or brightness values change
         }
       }
 
       if (Array.isArray(this.modules)) {
-        for (const module of this.modules) {
-          const url = `http://localhost:8080/api/${module.urlPath}`;
-          const data = await fetchData(url, module.urlPath);
+        for (let i = 0; i < this.modules.length; i++) {
+          const data = await fetchData(`http://localhost:8080/api/module/${this.modules[i].urlPath}`, 'data');
 
           if (data !== null) {
-            console.log(`[MMM-HomeAssistant] Fetched data for module ${module.urlPath}:`, data);
-            // Handle the fetched data as needed, e.g., update state or publish to MQTT
+            const hiddenData = data.hidden ? 'ON' : 'OFF';
+            if (hiddenData !== this.modules[i].hidden) {
+              this.moduleValues[i] = hiddenData; // Update module value
+              publishNeeded = true; // Set flag if module value changes
+            }
           } else {
-            console.warn(`[MMM-HomeAssistant] No data returned for module ${module.urlPath}`);
+            console.warn(`[MMM-HomeAssistant] No data returned for module ${this.modules[i].urlPath}`);
           }
         }
       } else {
         console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
+      }
+
+      if (publishNeeded) {
+        this.publishStates(); // Publish states if any value has changed
       }
     };
 
