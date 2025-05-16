@@ -54,6 +54,7 @@ module.exports = NodeHelper.create({
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
       this.publishStates()
+      this.publishConfigs();
 
       // Publish birth message to availability topic
       this.client.publish(this.availabilityTopic, 'online', { retain: true });
@@ -231,10 +232,10 @@ module.exports = NodeHelper.create({
       }
 
       if (this.config.moduleControl) {
-        modules.forEach(element => {
+        this.modules.forEach(element => {
           const switchJson = {
             schema: "json",
-            value_template: "{{ value_json.${element.urlPath} }}",
+            value_template: "{{ value_json." + element.urlPath + " }}",
             name: null,
             object_id: element.urlPath,
             command_topic: this.setTopic,
@@ -308,28 +309,30 @@ module.exports = NodeHelper.create({
         }
       }
 
-      if (Array.isArray(this.modules)) {
-        for (let i = 0; i < this.modules.length; i++) {
-          const data = await fetchData(`http://localhost:8080/api/module/${this.modules[i].urlPath}`, 'data');
+      if (this.config.moduleControl) {
+        if (Array.isArray(this.modules)) {
+          this.modules.forEach(async (module) => {
+            const data = await fetchData(`http://localhost:8080/api/module/${module.urlPath}`, 'data');
 
-          if (data !== null) {
-            const hiddenData = data.hidden ? 'ON' : 'OFF';
-            if (hiddenData !== this.modules[i].hidden) {
-              this.moduleValues[i] = hiddenData; // Update module value
-              publishNeeded = true; // Set flag if module value changes
+            if (data !== null) {
+              const hiddenData = !data[0].hidden ? 'ON' : 'OFF';
+              if (hiddenData !== module.hidden) {
+                module.hidden = hiddenData; // Update module value
+                publishNeeded = true; // Set flag if module value changes
+              }
+            } else {
+              console.warn(`[MMM-HomeAssistant] No data returned for module ${module.urlPath}`);
             }
-          } else {
-            console.warn(`[MMM-HomeAssistant] No data returned for module ${this.modules[i].urlPath}`);
-          }
+          });
+        } else {
+          console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
         }
-      } else {
-        console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
-      }
 
-      if (publishNeeded) {
-        this.publishStates(); // Publish states if any value has changed
-      }
-    };
+        if (publishNeeded) {
+          this.publishStates(); // Publish states if any value has changed
+        }
+      };
+    }
 
     // Poll every 1 second
     setInterval(fetchDisplayData, 1000);

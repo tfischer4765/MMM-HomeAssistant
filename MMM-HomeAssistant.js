@@ -26,7 +26,7 @@ Module.register("MMM-HomeAssistant", {
     const currentModuleData = [];
     modules.enumerate((module) => {
       const entry = {};
-      entry.hidden = module.hidden ? 'ON' : 'OFF';
+      entry.hidden = !module.hidden ? 'ON' : 'OFF';
       entry.name = module.name.replace(/MMM-/g, "").replace(/-/g, "");
       entry.urlPath = entry.name.toLowerCase();
       currentModuleData.push(entry);
