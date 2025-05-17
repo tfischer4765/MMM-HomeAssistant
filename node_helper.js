@@ -60,7 +60,7 @@ module.exports = NodeHelper.create({
       this.client.publish(this.availabilityTopic, 'online', { retain: true });
 
       // Subscribe to /set topics
-      this.subscribeToSetTopic();
+      this.subscribeToSetTopics();
     });
 
     this.client.on('error', (err) => {
@@ -75,12 +75,12 @@ module.exports = NodeHelper.create({
     });
   },
 
-  subscribeToSetTopic: function () {
-    this.client.subscribe(this.setTopic, (err) => {
+  subscribeToSetTopics: function () {
+    this.client.subscribe([this.setTopic, `${this.setTopic}/restart`], (err, granted) => {
       if (err) {
-        console.error('[MMM-HomeAssistant] Failed to subscribe to set topic:', err);
+        console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
       } else {
-        console.log('[MMM-HomeAssistant] Subscribed to set topic:', this.setTopic);
+        console.log('[MMM-HomeAssistant] Subscribed to set topics:', granted.map(g => g.topic).join(', '));
       }
     });
 
@@ -168,7 +168,8 @@ module.exports = NodeHelper.create({
   handleModuleSet: async function (moduleName, payload) {
     console.log(`[MMM-HomeAssistant] Handling module set for ${moduleName}:`, payload);
     try {
-      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/${payload}`, {
+      const action = payload[moduleName] === 'ON' ? 'show' : 'hide';
+      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/${action}`, {
         method: 'GET',
       });
 
@@ -238,8 +239,10 @@ module.exports = NodeHelper.create({
             availability_topic: this.availabilityTopic,
             state_topic: this.stateTopic,
             command_topic: this.setTopic,
+            entity_category: "config",
             schema: "json",
-            value_template: "{{ value_json." + element.urlPath + " }}",
+            value_template: `{{ value_json.${element.urlPath} }}`,
+            command_template: `{"${element.urlPath}": "{{ value }}" }`,
             name: this.config.deviceName + ' ' + element.name,
             object_id: `${element.urlPath}_switch`,
             unique_id: `${deviceId}_${element.urlPath}_switch`,
@@ -249,6 +252,23 @@ module.exports = NodeHelper.create({
         });
       }
 
+      const restartButtonJson = {
+        availability_topic: this.availabilityTopic,
+        command_topic: `${this.setTopic}/restart`,
+        device_class: "restart",
+        payload_press: "identify",
+        entity_category: "diagnostic",
+        name: this.config.deviceName + ' Restart',
+        object_id: `${deviceId}_restart`,
+        unique_id: `${deviceId}_restart`,
+      };
+
+      // Publish light configuration to MQTT autodiscovery topic
+      const restartConfigTopic = `${this.config.autodiscoveryTopic}/button/${deviceId}/restart/config`;
+      const combinedJson = { ...deviceJson, ...restartButtonJson };
+
+      topics.push(restartConfigTopic);
+      payloads.push(JSON.stringify(combinedJson));
 
       topics.forEach((topic, index) => {
         const payload = payloads[index];
@@ -318,9 +338,8 @@ module.exports = NodeHelper.create({
 
       if (this.config.moduleControl) {
         if (Array.isArray(this.modules)) {
-          this.modules.forEach(async (module) => {
+          for (const module of this.modules) {
             const data = await fetchData(`http://localhost:8080/api/module/${module.urlPath}`, 'data');
-
             if (data !== null) {
               const hiddenData = !data[0].hidden ? 'ON' : 'OFF';
               if (hiddenData !== module.hidden) {
@@ -330,15 +349,14 @@ module.exports = NodeHelper.create({
             } else {
               console.warn(`[MMM-HomeAssistant] No data returned for module ${module.urlPath}`);
             }
-          });
+          }
         } else {
           console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
         }
-
-        if (publishNeeded) {
-          this.publishStates(); // Publish states if any value has changed
-        }
-      };
+      }
+      if (publishNeeded) {
+        this.publishStates(); // Publish states if any value has changed
+      }
     }
 
     // Poll every 1 second
