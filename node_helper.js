@@ -117,7 +117,7 @@ module.exports = NodeHelper.create({
 
       if (topic === `${this.setTopic}/restart`) {
         console.log('[MMM-HomeAssistant] Restart command received.');
-        this.sendSocketNotification('RESTART', null);
+        this.handleRestart();
       }
     });
   },
