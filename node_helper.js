@@ -213,18 +213,19 @@ module.exports = NodeHelper.create({
       if (this.config.monitorControl || this.config.brightnessControl) {
         const lightJson = {
           availability_topic: this.availabilityTopic,
+          state_topic: this.stateTopic,
           command_topic: this.setTopic,
           brightness: this.config.brightnessControl,
           brightness_scale: 100,
-          name: this.config.deviceName,
-          object_id: deviceId,
           schema: "json",
-          state_topic: this.stateTopic,
-          unique_id: deviceId,
+          value_template: "{{ value_json.state }}",
+          name: null,
+          object_id: `${deviceId}_light`,
+          unique_id: `${deviceId}_light`,
         };
 
         // Publish light configuration to MQTT autodiscovery topic
-        const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/display/config`;
+        const lightConfigTopic = `${this.config.autodiscoveryTopic}/light/${deviceId}/config`;
         const combinedJson = { ...deviceJson, ...lightJson };
 
         topics.push(lightConfigTopic);
@@ -234,11 +235,14 @@ module.exports = NodeHelper.create({
       if (this.config.moduleControl) {
         this.modules.forEach(element => {
           const switchJson = {
+            availability_topic: this.availabilityTopic,
+            state_topic: this.stateTopic,
+            command_topic: this.setTopic,
             schema: "json",
             value_template: "{{ value_json." + element.urlPath + " }}",
-            name: null,
-            object_id: element.urlPath,
-            command_topic: this.setTopic,
+            name: this.config.deviceName + ' ' + element.name,
+            object_id: `${element.urlPath}_switch`,
+            unique_id: `${deviceId}_${element.urlPath}_switch`,
           }
           topics.push(`${this.config.autodiscoveryTopic}/switch/${deviceId}/${element.urlPath}/config`);
           payloads.push(JSON.stringify({ ...deviceJson, ...switchJson }));
@@ -271,8 +275,11 @@ module.exports = NodeHelper.create({
         payload[element.urlPath] = element.hidden;
       });
     }
-    console.log('[MMM-HomeAssistant] Updated state:', payload);
-    this.client.publish(this.stateTopic, JSON.stringify(payload), { retain: true });
+
+    if (Object.keys(payload).length > 0) {
+      console.log('[MMM-HomeAssistant] Updated state:', payload);
+      this.client.publish(this.stateTopic, JSON.stringify(payload), { retain: true });
+    }
   },
 
   watchEndpoints: function () {
