@@ -114,6 +114,11 @@ module.exports = NodeHelper.create({
           console.error('[MMM-HomeAssistant] Failed to parse JSON payload:', err);
         }
       }
+
+      if (topic === `${this.setTopic}/restart`) {
+        console.log('[MMM-HomeAssistant] Restart command received.');
+        this.sendSocketNotification('RESTART', null);
+      }
     });
   },
 
@@ -188,6 +193,32 @@ module.exports = NodeHelper.create({
     } catch (err) {
       console.error(`[MMM-HomeAssistant] Error setting module ${moduleName}:`, err);
     }
+  },
+
+  handleRestart: function () {
+    console.log('[MMM-HomeAssistant] Handling PM2 restart action');
+    let pm2;
+    try {
+      pm2 = require('pm2');
+    } catch (err) {
+      console.log('[MMM-HomeAssistant] PM2 not installed or unlinked');
+      return;
+    }
+    pm2.connect((err) => {
+      if (err) {
+        console.error('[MMM-HomeAssistant] PM2 connect error:', err);
+        return;
+      }
+      console.log(`[MMM-HomeAssistant] Restarting PM2 process: ${this.config.pm2ProcessName}`);
+      pm2.restart(this.config.pm2ProcessName, (err) => {
+        if (err) {
+          console.error('[MMM-HomeAssistant] PM2 restart error:', err);
+        } else {
+          console.log(`[MMM-HomeAssistant] PM2 process ${this.config.pm2ProcessName} restarted successfully.`);
+        }
+        pm2.disconnect();
+      });
+    });
   },
 
   publishConfigs: async function () {
