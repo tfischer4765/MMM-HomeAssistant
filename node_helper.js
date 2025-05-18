@@ -91,11 +91,12 @@ module.exports = NodeHelper.create({
           console.log(`[MMM-HomeAssistant] Received message on topic ${topic}:`, payload);
 
           if ((this.config.brightnessControl || this.config.monitorControl) &&
-            payload.state !== undefined) {
-            await this.handleStatusSet(payload.state);
+            payload.state !== undefined && payload.state !== this.monitorValue) {
+            await this.handleMonitorSet(payload.state);
           }
 
-          if (this.config.brightnessControl && payload.brightness !== undefined) {
+          if (this.config.brightnessControl && 
+            payload.brightness !== undefined && payload.state !== this.brightnessValue) {
             await this.handleBrightnessSet(payload.brightness);
           }
 
@@ -122,27 +123,27 @@ module.exports = NodeHelper.create({
     });
   },
 
-  handleStatusSet: async function (payload) {
-    console.log('[MMM-HomeAssistant] Handling status set:', payload);
+  handleMonitorSet: async function (payload) {
+    console.log('[MMM-HomeAssistant] Handling monitor set:', payload);
     try {
       const response = await fetch(`http://localhost:8080/api/monitor/${payload}`, {
         method: 'GET',
       });
 
       if (!response.ok) {
-        console.error('[MMM-HomeAssistant] Failed to update monitor status:', response.statusText);
+        console.error('[MMM-HomeAssistant] Failed to update monitor:', response.statusText);
         return;
       }
 
       const responseData = await response.json();
       if (!responseData.success) {
-        console.error('[MMM-HomeAssistant] Monitor status update failed. Success flag is false:', responseData);
+        console.error('[MMM-HomeAssistant] Monitor update failed. Success flag is false:', responseData);
         return;
       }
 
-      console.log('[MMM-HomeAssistant] Monitor status updated successfully.');
+      console.log('[MMM-HomeAssistant] Monitor updated successfully.');
     } catch (err) {
-      console.error('[MMM-HomeAssistant] Error updating monitor status:', err);
+      console.error('[MMM-HomeAssistant] Error updating monitor:', err);
     }
   },
 
@@ -357,12 +358,10 @@ module.exports = NodeHelper.create({
       let publishNeeded = false; // Flag to determine if states need to be published
 
       const monitorData = await fetchData('http://localhost:8080/api/monitor', 'monitor');
-      const brightnessData = await fetchData('http://localhost:8080/api/brightness', 'result');
 
-      if (monitorData && brightnessData) {
-        if (monitorData.toUpperCase() !== this.monitorValue || brightnessData !== this.brightnessValue) {
+      if (monitorData) {
+        if (monitorData.toUpperCase() !== this.monitorValue) {
           this.monitorValue = monitorData.toUpperCase();
-          this.brightnessValue = brightnessData;
           publishNeeded = true; // Set flag if monitor or brightness values change
         }
       }
@@ -411,6 +410,14 @@ module.exports = NodeHelper.create({
     if (notification === 'MODULES') {
       this.modules = payload;
       console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
+    }
+
+    if (notification === 'BRIGHTNESS_UPDATE') {
+      const newBrightness = Math.max(0, Math.min(100, payload));
+      if (newBrightness !== this.brightnessValue) {
+        this.brightnessValue = newBrightness;
+        this.publishStates();
+      }
     }
   },
 });
