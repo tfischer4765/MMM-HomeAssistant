@@ -53,7 +53,6 @@ module.exports = NodeHelper.create({
     this.client.on('connect', () => {
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
-      this.publishStates()
       this.publishConfigs();
 
       // Publish birth message to availability topic
@@ -173,27 +172,11 @@ module.exports = NodeHelper.create({
 
   handleModuleSet: async function (moduleName, payload) {
     console.log(`[MMM-HomeAssistant] Handling module set for ${moduleName}:`, payload);
-    try {
-      const action = payload[moduleName] === 'ON' ? 'show' : 'hide';
-      const response = await fetch(`http://localhost:8080/api/module/${moduleName}/${action}`, {
-        method: 'GET',
-      });
+    const module = this.modules.find(m => m.urlPath === moduleName);
+    const command = payload[moduleName];
+    const identifier = module.identifier;
+    this.sendSocketNotification("MODULE_CONTROL", { identifier, command });
 
-      if (!response.ok) {
-        console.error(`[MMM-HomeAssistant] Failed to set module ${moduleName}:`, response.statusText);
-        return;
-      }
-
-      const responseData = await response.json();
-      if (!responseData.success) {
-        console.error(`[MMM-HomeAssistant] Module set operation failed for ${moduleName}. Success flag is false:`, responseData);
-        return;
-      }
-
-      console.log(`[MMM-HomeAssistant] Module ${moduleName} set operation completed successfully.`);
-    } catch (err) {
-      console.error(`[MMM-HomeAssistant] Error setting module ${moduleName}:`, err);
-    }
   },
 
   handleRestart: function () {
@@ -386,8 +369,12 @@ module.exports = NodeHelper.create({
     if (notification === 'MODULES_UPDATE') {
       const wasEmpty = !Array.isArray(this.modules) || this.modules.length === 0;
       this.modules = payload;
-      if (wasEmpty) console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
-      else this.publishConfigs();
+      if (wasEmpty) {
+        console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
+      }
+      else {
+        this.publishStates();
+      }
     }
 
     if (notification === 'BRIGHTNESS_UPDATE') {

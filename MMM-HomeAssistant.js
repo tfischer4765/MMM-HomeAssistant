@@ -24,13 +24,26 @@ Module.register("MMM-HomeAssistant", {
   },
 
   sendModules() {
+    // Handling multiple instances of the same module
+    const baseNameCounts = {};
+    this.modules.enumerate((module) => {
+      const baseName = module.name.replace(/MMM-/g, "").replace(/-/g, "");
+      baseNameCounts[baseName] = (baseNameCounts[baseName] || 0) + 1;
+    });
+    const nameInstance = {};
     const currentModuleData = [];
     this.modules.enumerate((module) => {
+      const baseName = module.name.replace(/MMM-/g, "").replace(/-/g, "");
+      nameInstance[baseName] = (nameInstance[baseName] || 0) + 1;
+      let name = baseName;
+      if (baseNameCounts[baseName] > 1) {
+        name = `${baseName}_${nameInstance[baseName]}`;
+      }
       const entry = {};
       entry.identifier = module.identifier;
       entry.hidden = module.hidden;
-      entry.name = module.name.replace(/MMM-/g, "").replace(/-/g, "");
-      entry.urlPath = entry.name.toLowerCase();
+      entry.name = name;
+      entry.urlPath = name.toLowerCase().replace(/\s+/g, "_");
       currentModuleData.push(entry);
     });
     this.sendSocketNotification("MODULES_UPDATE", currentModuleData);
@@ -44,7 +57,7 @@ Module.register("MMM-HomeAssistant", {
       const observer = new MutationObserver(() => {
         if (module.hidden !== lastHidden) {
           lastHidden = module.hidden;
-          Log.info(`[MMM-HomeAssistant] Module '${module.name}' hidden state changed to: ${lastHidden}`);
+          Log.info(`[MMM-HomeAssistant] Module '${module.identifier}' hidden state changed to: ${lastHidden}`);
           this.sendModules();
         }
       });
@@ -52,10 +65,24 @@ Module.register("MMM-HomeAssistant", {
     });
   },
 
+  socketNotificationReceived(notification, payload) {
+    if (notification === "MODULE_CONTROL") {
+      Log.info(`[MMM-HomeAssistant] Module control received: ${payload.identifier} ${payload.command}`);
+      const module = this.modules.find(m => m.identifier === payload.identifier);
+      if (payload.command === 'ON')
+        module.show(1000, function () { }, { lockString: payload.moduleName });
+      else if (payload.command === 'OFF')
+        module.hide(1000, function () { }, { lockString: payload.moduleName })
+    }
+  },
+
   notificationReceived: function (notification, payload, sender) {
     if (notification === "DOM_OBJECTS_CREATED") {
       if (this.config.moduleControl === true) {
-        this.modules = MM.getModules().exceptModule(this).exceptWithClass("MMM-Remote-Control");
+        this.modules = MM.getModules()
+          .exceptModule(this)
+          .exceptWithClass("MMM-Remote-Control")
+          .exceptWithClass("alert");
         this.sendModules();
       }
       this.sendSocketNotification("MQTT_INIT", this.config);
