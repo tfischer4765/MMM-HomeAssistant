@@ -95,7 +95,7 @@ module.exports = NodeHelper.create({
             await this.handleMonitorSet(payload.state);
           }
 
-          if (this.config.brightnessControl && 
+          if (this.config.brightnessControl &&
             payload.brightness !== undefined && payload.state !== this.brightnessValue) {
             await this.handleBrightnessSet(payload.brightness);
           }
@@ -324,7 +324,7 @@ module.exports = NodeHelper.create({
     }
     if (this.config.moduleControl) {
       this.modules.forEach(element => {
-        payload[element.urlPath] = element.hidden;
+        payload[element.urlPath] = element.hidden ? 'OFF' : 'ON';
       });
     }
 
@@ -355,37 +355,13 @@ module.exports = NodeHelper.create({
     };
 
     const fetchDisplayData = async () => {
-      let publishNeeded = false; // Flag to determine if states need to be published
-
       const monitorData = await fetchData('http://localhost:8080/api/monitor', 'monitor');
 
       if (monitorData) {
         if (monitorData.toUpperCase() !== this.monitorValue) {
           this.monitorValue = monitorData.toUpperCase();
-          publishNeeded = true; // Set flag if monitor or brightness values change
+          this.publishStates();
         }
-      }
-
-      if (this.config.moduleControl) {
-        if (Array.isArray(this.modules)) {
-          for (const module of this.modules) {
-            const data = await fetchData(`http://localhost:8080/api/module/${module.urlPath}`, 'data');
-            if (data !== null) {
-              const hiddenData = !data[0].hidden ? 'ON' : 'OFF';
-              if (hiddenData !== module.hidden) {
-                module.hidden = hiddenData; // Update module value
-                publishNeeded = true; // Set flag if module value changes
-              }
-            } else {
-              console.warn(`[MMM-HomeAssistant] No data returned for module ${module.urlPath}`);
-            }
-          }
-        } else {
-          console.error('[MMM-HomeAssistant] this.modules is not an array:', this.modules);
-        }
-      }
-      if (publishNeeded) {
-        this.publishStates(); // Publish states if any value has changed
       }
     }
 
@@ -407,9 +383,11 @@ module.exports = NodeHelper.create({
       }
     }
 
-    if (notification === 'MODULES') {
+    if (notification === 'MODULES_UPDATE') {
+      const wasEmpty = !Array.isArray(this.modules) || this.modules.length === 0;
       this.modules = payload;
-      console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
+      if (wasEmpty) console.log('[MMM-HomeAssistant] Received modules data:', this.modules);
+      else this.publishConfigs();
     }
 
     if (notification === 'BRIGHTNESS_UPDATE') {

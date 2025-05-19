@@ -10,6 +10,7 @@ Module.register("MMM-HomeAssistant", {
 
   start: function () {
     Log.info('Starting module: ' + this.name);
+    this.modules = [];
   },
 
   getStyles: function () {
@@ -23,25 +24,45 @@ Module.register("MMM-HomeAssistant", {
   },
 
   sendModules() {
-    const modules = MM.getModules().exceptModule(this).exceptWithClass("MMM-Remote-Control");
     const currentModuleData = [];
-    modules.enumerate((module) => {
+    this.modules.enumerate((module) => {
       const entry = {};
-      entry.hidden = !module.hidden ? 'ON' : 'OFF';
+      entry.identifier = module.identifier;
+      entry.hidden = module.hidden;
       entry.name = module.name.replace(/MMM-/g, "").replace(/-/g, "");
       entry.urlPath = entry.name.toLowerCase();
       currentModuleData.push(entry);
     });
-    this.sendSocketNotification("MODULES", currentModuleData);
+    this.sendSocketNotification("MODULES_UPDATE", currentModuleData);
+  },
+
+  monitorModulesHiddenState() {
+    this.modules.enumerate((module) => {
+      const div = document.getElementById(module.identifier);
+      if (!div) return;
+      let lastHidden = module.hidden;
+      const observer = new MutationObserver(() => {
+        if (module.hidden !== lastHidden) {
+          lastHidden = module.hidden;
+          Log.info(`[MMM-HomeAssistant] Module '${module.name}' hidden state changed to: ${lastHidden}`);
+          this.sendModules();
+        }
+      });
+      observer.observe(div, { attributes: true, attributeFilter: ['class'] });
+    });
   },
 
   notificationReceived: function (notification, payload, sender) {
     if (notification === "DOM_OBJECTS_CREATED") {
       if (this.config.moduleControl === true) {
+        this.modules = MM.getModules().exceptModule(this).exceptWithClass("MMM-Remote-Control");
         this.sendModules();
       }
       this.sendSocketNotification("MQTT_INIT", this.config);
       this.monitorOverlayBrightness();
+      if (this.config.moduleControl === true) {
+        this.monitorModulesHiddenState();
+      }
     }
   },
 
@@ -64,7 +85,7 @@ Module.register("MMM-HomeAssistant", {
     };
 
     let overlay = getOverlay();
-    let lastBrightness = getBrightness(overlay);
+    let lastBrightness = 0
 
     // If overlay is not present, poll until it appears
     if (!overlay) {
