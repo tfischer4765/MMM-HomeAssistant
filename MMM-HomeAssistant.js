@@ -74,6 +74,15 @@ Module.register("MMM-HomeAssistant", {
       else if (payload.command === 'OFF')
         module.hide(1000, function () { }, { lockString: payload.moduleName })
     }
+
+    if (notification === "BRIGHTNESS_CONTROL") {
+      const childNodesList = document.body.childNodes;
+      for (let i = 0; i < childNodesList.length; i++) {
+        if (childNodesList[i].nodeName !== "SCRIPT" && childNodesList[i].nodeName !== "#text") {
+          childNodesList[i].style.filter = payload;
+        }
+      }
+    }
   },
 
   notificationReceived: function (notification, payload, sender) {
