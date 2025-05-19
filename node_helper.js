@@ -258,8 +258,8 @@ module.exports = NodeHelper.create({
             schema: "json",
             value_template: `{{ value_json.${element.urlPath} }}`,
             command_template: `{"${element.urlPath}": "{{ value }}" }`,
-            name: this.config.deviceName + ' ' + element.name,
-            object_id: `${element.urlPath}_switch`,
+            name: element.name.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase()),
+            object_id: `${deviceId}_${element.urlPath}_switch`,
             unique_id: `${deviceId}_${element.urlPath}_switch`,
           }
           topics.push(`${this.config.autodiscoveryTopic}/switch/${deviceId}/${element.urlPath}/config`);
@@ -273,7 +273,7 @@ module.exports = NodeHelper.create({
         device_class: "restart",
         payload_press: "identify",
         entity_category: "diagnostic",
-        name: this.config.deviceName + ' Restart',
+        name: 'Restart',
         object_id: `${deviceId}_restart`,
         unique_id: `${deviceId}_restart`,
       };
