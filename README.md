@@ -1,11 +1,7 @@
-# MMM-Template
-Use this template for creating new MagicMirror² modules.
+# MMM-HomeAssistant
+A MagicMirror² module that creates an MQTT device with autodiscovery in Home Assistant.
 
-See the [wiki page](https://github.com/Dennis-Rosenbaum/MMM-Template/wiki) for an in depth overview of how to get started.
-
-# MMM-Template
-
-![Example of MMM-Template](./example_1.png)
+![Example of MMM-Template](./example_MMM-HomeAssistant.png)
 
 [Module description]
 
@@ -13,18 +9,20 @@ See the [wiki page](https://github.com/Dennis-Rosenbaum/MMM-Template/wiki) for a
 
 ### Install
 
-In your terminal, go to your [MagicMirror²][mm] Module folder and clone MMM-Template:
+In your terminal, go to your [MagicMirror²][mm] Module folder and clone MMM-HomeAssistant:
 
 ```bash
 cd ~/MagicMirror/modules
-git clone [GitHub url]
+git clone https://github.com/ambarusa/MMM-HomeAssistant/
+npm install
 ```
 
 ### Update
 
 ```bash
-cd ~/MagicMirror/modules/MMM-Template
+cd ~/MagicMirror/modules/MMM-HomeAssistant
 git pull
+npm install
 ```
 
 ## Using the module
@@ -33,19 +31,16 @@ To use this module, add it to the modules array in the `config/config.js` file:
 
 ```js
     {
-        module: 'MMM-Template',
-        position: 'lower_third'
-    },
-```
-
-Or you could use all the options:
-
-```js
-    {
-        module: 'MMM-Template',
-        position: 'lower_third',
+        module: 'MMM-HomeAsssistant',
         config: {
-            exampleContent: 'Welcome world'
+            mqttServer: 'mqtt://localhost',
+            mqttPort: 1883,
+            deviceName: 'My MagicMirror',
+            autodiscoveryTopic: 'homeasssistant',
+            monitorControl: true,
+            brightnessControl: true,
+            moduleControl: true,
+            pm2ProcessName: 'mm',
         }
     },
 ```
@@ -54,13 +49,14 @@ Or you could use all the options:
 
 Option|Possible values|Default|Description
 ------|------|------|-----------
-`exampleContent`|`string`|not available|The content to show on the page
-
-## Sending notifications to the module
-
-Notification|Description
-------|-----------
-`TEMPLATE_RANDOM_TEXT`|Payload must contain the text that needs to be shown on this module
+`mqttServer`|`string`|`mqtt://localhost`|MQTT Server Address
+`mqttPort`|`int`|`1883`|MQTT Port
+`deviceName`|`string`|`mqtt://localhost`|MQTT Server Address
+`autodiscoveryTopic`|`string`|`mqtt://localhost`|MQTT Server Address
+`monitorControl`|`boolean`|`false`|Treat the display as an ON/OFF light entity
+`brightnessControl`|`boolean`|`false`|Treat the display as a light entity with brightness. *This automatically enables `monitorControl` option!*
+`moduleControl`|`boolean`|`true`|MQTT Server Address
+`pm2ProcessName`|`string`|`mm`|MQTT Server Address
 
 ## Developer commands
 
