@@ -1,7 +1,7 @@
 # MMM-HomeAssistant
 A MagicMirror² module that creates an MQTT device with autodiscovery in Home Assistant.
 
-![Example of MMM-Template](./example_MMM-HomeAssistant.png)
+![Example of MMM-HomeAssistant](./example_MMM-HomeAssistant.png)
 
 [Module description]
 
