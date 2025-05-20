@@ -6,6 +6,8 @@ Module.register("MMM-HomeAssistant", {
     mqttServer: "mqtt://localhost",
     mqttPort: 1883,
     monitorStatusCommand: "echo true",
+    monitorOnCommand: "",
+    monitorOffCommand: "",
   },
 
   start: function () {

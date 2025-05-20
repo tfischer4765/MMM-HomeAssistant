@@ -62,17 +62,19 @@ To use this module, add it to the modules array in the `config/config.js` file:
 
 ## Configuration options
 
-| Option              | Possible values | Default            | Description                                                                 |
-|---------------------|----------------|--------------------|-----------------------------------------------------------------------------|
-| `mqttServer`        | `string`       | `mqtt://localhost` | MQTT Server Address                                                         |
-| `mqttPort`          | `int`          | `1883`             | MQTT Port                                                                   |
-| `deviceName`        | `string`       | `My MagicMirror`   | MQTT Device Name                                                            |
-| `autodiscoveryTopic`| `string`       | `homeassistant`    | Autodiscovery topic for Home Assistant                                      |
-| `monitorControl`    | `boolean`      | `false`            | Treat the display as an ON/OFF light entity                                 |
-| `brightnessControl` | `boolean`      | `false`            | Treat the display as a light entity with brightness. Enables monitorControl! |
-| `monitorStatusCommand` | `string`      | `echo true`            | Shell command to check the monitor status; must return `true`/`false` or `0`/`1` for correct operation. |
-| `moduleControl`     | `boolean`      | `true`             | Make modules controllable as switch entities                                 |
-| `pm2ProcessName`    | `string`       | `undefined`        | If set, allows MagicMirror to be restarted via Home Assistant                |
+| Option                | Possible values | Default           | Description                                                                                                         |
+|-----------------------|----------------|--------------------|---------------------------------------------------------------------------------------------------------------------|
+| `mqttServer`          | `string`       | `mqtt://localhost` | MQTT Server Address                                                                                                 |
+| `mqttPort`            | `int`          | `1883`             | MQTT Port                                                                                                           |
+| `deviceName`          | `string`       | `My MagicMirror`   | MQTT Device Name                                                                                                    |
+| `autodiscoveryTopic`  | `string`       | `homeassistant`    | Autodiscovery topic for Home Assistant                                                                              |
+| `monitorControl`      | `boolean`      | `false`            | Treat the display as an ON/OFF light entity                                                                         |
+| `brightnessControl`   | `boolean`      | `false`            | Treat the display as a light entity with brightness. Enables monitorControl!                                        |
+| `monitorStatusCommand`| `string`       | `echo true`        | Shell command to check the monitor status; must return `true`/`false` or `0`/`1` for correct operation.             |
+| `monitorOnCommand`    | `string`       |                    | Shell command to turn on the monitor.                                                                               |
+| `monitorOffCommand`   | `string`       |                    | Shell command to turn off the monitor.                                                                              |
+| `moduleControl`       | `boolean`      | `true`             | Make modules controllable as switch entities                                                                        |
+| `pm2ProcessName`      | `string`       | `undefined`        | If set, allows MagicMirror to be restarted via Home Assistant                                                       |
 
 ## Home Assistant Integration
 

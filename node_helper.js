@@ -131,26 +131,30 @@ module.exports = NodeHelper.create({
 
   handleMonitorSet: async function (payload) {
     console.log('[MMM-HomeAssistant] Handling monitor set:', payload);
-    try {
-      const response = await fetch(`http://localhost:8080/api/monitor/${payload}`, {
-        method: 'GET',
-      });
 
-      if (!response.ok) {
-        console.error('[MMM-HomeAssistant] Failed to update monitor:', response.statusText);
-        return;
-      }
-
-      const responseData = await response.json();
-      if (!responseData.success) {
-        console.error('[MMM-HomeAssistant] Monitor update failed. Success flag is false:', responseData);
-        return;
-      }
-
-      console.log('[MMM-HomeAssistant] Monitor updated successfully.');
-    } catch (err) {
-      console.error('[MMM-HomeAssistant] Error updating monitor:', err);
+    let command;
+    if (payload === 'ON') {
+      command = this.config.monitorOnCommand;
+    } else if (payload === 'OFF') {
+      command = this.config.monitorOffCommand;
+    } else {
+      console.error('[MMM-HomeAssistant] Invalid monitor state payload:', payload);
+      return;
     }
+
+    if (!command) {
+      console.error('[MMM-HomeAssistant] Monitor command not configured for state:', payload);
+      return;
+    }
+
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[MMM-HomeAssistant] Error executing monitor command:`, error);
+        return;
+      }
+
+      this.publishStates();
+    });
   },
 
   handleBrightnessSet: async function (payload) {
