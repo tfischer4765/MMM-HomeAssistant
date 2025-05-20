@@ -2,6 +2,7 @@
 const NodeHelper = require('node_helper');
 const mqtt = require('mqtt');
 const si = require('systeminformation');
+const { exec } = require('child_process');
 // const Gpio = require('onoff').Gpio;
 
 module.exports = NodeHelper.create({
@@ -21,6 +22,8 @@ module.exports = NodeHelper.create({
   },
 
   connectMQTT: function () {
+    if (this.client) return;
+
     if (!this.config || !this.config.mqttServer) {
       throw new Error('[MMM-HomeAssistant] MQTT server URL is missing in the configuration.');
     }
@@ -75,11 +78,15 @@ module.exports = NodeHelper.create({
   },
 
   subscribeToSetTopics: function () {
-    this.client.subscribe([this.setTopic, `${this.setTopic}/restart`], (err, granted) => {
+    const topics = [this.setTopic];
+    if (this.config.pm2ProcessName) {
+      topics.push(`${this.setTopic}/restart`);
+    }
+    this.client.subscribe(topics, (err, granted) => {
       if (err) {
-        console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
+      console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
       } else {
-        console.log('[MMM-HomeAssistant] Subscribed to set topics:', granted.map(g => g.topic).join(', '));
+      console.log('[MMM-HomeAssistant] Subscribed to set topics:', granted.map(g => g.topic).join(', '));
       }
     });
 
@@ -148,26 +155,7 @@ module.exports = NodeHelper.create({
 
   handleBrightnessSet: async function (payload) {
     console.log('[MMM-HomeAssistant] Handling brightness set:', payload);
-    try {
-      const response = await fetch(`http://localhost:8080/api/brightness/${payload}`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        console.error('[MMM-HomeAssistant] Failed to update brightness:', response.statusText);
-        return;
-      }
-
-      const responseData = await response.json();
-      if (!responseData.success) {
-        console.error('[MMM-HomeAssistant] Brightness update failed. Success flag is false:', responseData);
-        return;
-      }
-
-      console.log('[MMM-HomeAssistant] Brightness updated successfully.');
-    } catch (err) {
-      console.error('[MMM-HomeAssistant] Error updating brightness:', err);
-    }
+    this.sendSocketNotification("BRIGHTNESS_CONTROL", payload);
   },
 
   handleModuleSet: async function (moduleName, payload) {
@@ -267,23 +255,25 @@ module.exports = NodeHelper.create({
         });
       }
 
-      const restartButtonJson = {
-        availability_topic: this.availabilityTopic,
-        command_topic: `${this.setTopic}/restart`,
-        device_class: "restart",
-        payload_press: "identify",
-        entity_category: "diagnostic",
-        name: 'Restart',
-        object_id: `${deviceId}_restart`,
-        unique_id: `${deviceId}_restart`,
-      };
+      if (this.config.pm2ProcessName) {
+        const restartButtonJson = {
+          availability_topic: this.availabilityTopic,
+          command_topic: `${this.setTopic}/restart`,
+          device_class: "restart",
+          payload_press: "identify",
+          entity_category: "diagnostic",
+          name: 'Restart',
+          object_id: `${deviceId}_restart`,
+          unique_id: `${deviceId}_restart`,
+        };
 
-      // Publish light configuration to MQTT autodiscovery topic
-      const restartConfigTopic = `${this.config.autodiscoveryTopic}/button/${deviceId}/restart/config`;
-      const combinedJson = { ...deviceJson, ...restartButtonJson };
+        // Publish light configuration to MQTT autodiscovery topic
+        const restartConfigTopic = `${this.config.autodiscoveryTopic}/button/${deviceId}/restart/config`;
+        const combinedJson = { ...deviceJson, ...restartButtonJson };
 
-      topics.push(restartConfigTopic);
-      payloads.push(JSON.stringify(combinedJson));
+        topics.push(restartConfigTopic);
+        payloads.push(JSON.stringify(combinedJson));
+      }
 
       topics.forEach((topic, index) => {
         const payload = payloads[index];
@@ -318,38 +308,28 @@ module.exports = NodeHelper.create({
   },
 
   watchEndpoints: function () {
-    const fetchData = async (url, elementKey) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.warn(`[MMM-HomeAssistant] API not available yet for ${url}. Retrying...`);
-          return null;
-        }
-        const data = await response.json();
-        if (!data.success) {
-          console.error(`[MMM-HomeAssistant] API call to ${url} failed. Success flag is false:`, data);
-          return null;
-        }
-        return data[elementKey];
-      } catch (err) {
-        console.error(`[MMM-HomeAssistant] Error fetching data from ${url}:`, err);
-        return null;
-      }
-    };
+    if (this.config.monitorStatusCommand) {
+      let lastMonitorValue = this.monitorValue;
 
-    const fetchDisplayData = async () => {
-      const monitorData = await fetchData('http://localhost:8080/api/monitor', 'monitor');
+      const pollMonitorStatus = () => {
+        exec(this.config.monitorStatusCommand, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`[MMM-HomeAssistant] Error executing monitorStatusCommand:`, error);
+            return;
+          }
+          const trimmed = stdout.trim().toLowerCase();
+          // Interpret "true" as ON, "false" as OFF
+          const newValue = (trimmed === 'true' || trimmed === '1') ? 'ON' : 'OFF';
+          if (newValue !== lastMonitorValue) {
+            this.monitorValue = newValue;
+            lastMonitorValue = newValue;
+            this.publishStates();
+          }
+        });
+      };
 
-      if (monitorData) {
-        if (monitorData.toUpperCase() !== this.monitorValue) {
-          this.monitorValue = monitorData.toUpperCase();
-          this.publishStates();
-        }
-      }
+      setInterval(pollMonitorStatus, 1000);
     }
-
-    // Poll every 1 second
-    setInterval(fetchDisplayData, 1000);
   },
 
   socketNotificationReceived: function (notification, payload) {

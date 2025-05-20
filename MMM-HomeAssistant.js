@@ -4,8 +4,8 @@ Module.register("MMM-HomeAssistant", {
     deviceName: "My MagicMirror",
     autodiscoveryTopic: "homeassistant",
     mqttServer: "mqtt://localhost",
-    pm2ProcessName: "mm",
     mqttPort: 1883,
+    monitorStatusCommand: "echo true",
   },
 
   start: function () {
@@ -49,6 +49,50 @@ Module.register("MMM-HomeAssistant", {
     this.sendSocketNotification("MODULES_UPDATE", currentModuleData);
   },
 
+  monitorOverlayBrightness: function () {
+    // Find divs with region="tabs"
+    const getDivs = () => {
+      return Array.from(document.body.children)
+        .filter(child => child.tagName === 'DIV' && child.classList.contains('region'));
+    };
+    const getBrightness = (overlays) => {
+      if (!overlays || overlays.length === 0) return 100;
+      let maxBrightness = 0;
+      overlays.forEach((overlay) => {
+        let brightness = 100;
+        const filter = overlay.style.filter;
+        if (filter) {
+          const match = filter.match(/brightness\((\d+)%?\)/i);
+          if (match && match[1]) {
+            brightness = parseInt(match[1], 10);
+          } else {
+            const floatMatch = filter.match(/brightness\((0?\.\d+)\)/i);
+            if (floatMatch && floatMatch[1]) {
+              brightness = Math.round(parseFloat(floatMatch[1]) * 100);
+            }
+          }
+        }
+        if (brightness > maxBrightness) maxBrightness = brightness;
+      });
+      return maxBrightness;
+    };
+
+    let divs = getDivs();
+    let lastBrightness = getBrightness(divs);
+
+    divs.forEach((overlay) => {
+      const observer = new MutationObserver(() => {
+        const newBrightness = getBrightness(getDivs());
+        if (newBrightness !== lastBrightness) {
+          this.sendSocketNotification("BRIGHTNESS_UPDATE", newBrightness);
+          Log.info(`[MMM-HomeAssistant] Brightness changed to: ${newBrightness}`);
+          lastBrightness = newBrightness;
+        }
+      });
+      observer.observe(overlay, { attributes: true, attributeFilter: ['style'] });
+    });
+  },
+
   monitorModulesHiddenState() {
     this.modules.enumerate((module) => {
       const div = document.getElementById(module.identifier);
@@ -76,10 +120,11 @@ Module.register("MMM-HomeAssistant", {
     }
 
     if (notification === "BRIGHTNESS_CONTROL") {
+      Log.info(`[MMM-HomeAssistant] Brightness control received: ${payload}`);
       const childNodesList = document.body.childNodes;
       for (let i = 0; i < childNodesList.length; i++) {
         if (childNodesList[i].nodeName !== "SCRIPT" && childNodesList[i].nodeName !== "#text") {
-          childNodesList[i].style.filter = payload;
+            childNodesList[i].style.filter = `brightness(${payload}%)`;
         }
       }
     }
@@ -100,49 +145,5 @@ Module.register("MMM-HomeAssistant", {
         this.monitorModulesHiddenState();
       }
     }
-  },
-
-  monitorOverlayBrightness: function () {
-    const getOverlay = () => document.getElementById('remote-control-overlay-temp');
-    const getBrightness = (overlay) => {
-      if (!overlay) return 100;
-      const filter = overlay.style.filter;
-      if (!filter) return 100;
-      const match = filter.match(/brightness\((\d+)%?\)/i);
-      if (match && match[1]) {
-        return parseInt(match[1], 10);
-      }
-      // If filter is like 'brightness(0.6)'
-      const floatMatch = filter.match(/brightness\((0?\.\d+)\)/i);
-      if (floatMatch && floatMatch[1]) {
-        return Math.round(parseFloat(floatMatch[1]) * 100);
-      }
-      return 100;
-    };
-
-    let overlay = getOverlay();
-    let lastBrightness = 0
-
-    // If overlay is not present, poll until it appears
-    if (!overlay) {
-      const poller = setInterval(() => {
-        overlay = getOverlay();
-        if (overlay) {
-          clearInterval(poller);
-          this.monitorOverlayBrightness(); // Re-run now that overlay exists
-        }
-      }, 1000);
-      return;
-    }
-
-    // Observe changes to the style attribute
-    const observer = new MutationObserver(() => {
-      const newBrightness = getBrightness(overlay);
-      if (newBrightness !== lastBrightness) {
-        this.sendSocketNotification("BRIGHTNESS_UPDATE", newBrightness);
-        lastBrightness = newBrightness;
-      }
-    });
-    observer.observe(overlay, { attributes: true, attributeFilter: ['style'] });
   },
 })
