@@ -82,6 +82,10 @@ Module.register("MMM-HomeAssistant", {
     let divs = getDivs();
     let lastBrightness = getBrightness(divs);
 
+    // Send initial brightness value
+    this.sendSocketNotification("BRIGHTNESS_UPDATE", lastBrightness);
+    Log.info(`[MMM-HomeAssistant] Brightness changed to: ${lastBrightness}`);
+
     divs.forEach((overlay) => {
       const observer = new MutationObserver(() => {
         const newBrightness = getBrightness(getDivs());
