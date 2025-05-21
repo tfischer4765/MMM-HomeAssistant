@@ -199,7 +199,12 @@ module.exports = NodeHelper.create({
 
   publishConfigs: async function () {
     try {
-      const deviceId = this.config.deviceName.replace(/\s+/g, '_').toLowerCase();
+      const deviceId = this.config.deviceName
+        .normalize('NFD') // decompose accented chars
+        .replace(/[\u0300-\u036f]/g, '') // remove accents
+        .replace(/\W+/g, '_') // replace non-word chars with _
+        .replace(/^_+|_+$/g, '') // trim leading/trailing _
+        .toLowerCase();
       const sys = await si.system();
       const baseboard = await si.baseboard();
 
