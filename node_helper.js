@@ -75,6 +75,9 @@ module.exports = NodeHelper.create({
     this.client.on('connect', () => {
       console.log('[MMM-HomeAssistant] Successfully connected to MQTT server.');
 
+      this.mqttErrorLogged = false; // Reset error flag on successful connect
+      this.mqttCloseLogged = false; // Reset close flag on successful connect
+
       this.publishConfigs();
 
       // Publish birth message to availability topic
@@ -85,14 +88,19 @@ module.exports = NodeHelper.create({
     });
 
     this.client.on('error', (err) => {
-      console.error('[MMM-HomeAssistant] MQTT connection error:', err);
+      if (!this.mqttErrorLogged) {
+        console.error('[MMM-HomeAssistant] MQTT connection error:', err);
+        this.mqttErrorLogged = true; // Set error flag to prevent repeated logging
+      }
     });
 
     this.client.on('close', () => {
-      console.log('[MMM-HomeAssistant] MQTT connection closed.');
-
-      // Publish last will message to availability topic
-      this.client.publish(this.availabilityTopic, 'offline', { retain: true });
+      if (!this.mqttCloseLogged) {
+        console.log('[MMM-HomeAssistant] MQTT connection closed.');
+        this.mqttCloseLogged = true; // Set close flag to prevent repeated logging
+        // Publish last will message to availability topic
+        this.client.publish(this.availabilityTopic, 'offline', { retain: true });
+      }
     });
   },
 
