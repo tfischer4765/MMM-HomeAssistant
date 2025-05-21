@@ -64,6 +64,7 @@ To use this module, add it to the modules array in the `config/config.js` file:
     }
 },
 ```
+*Example config for a Raspberry Pi 4B running MagicMirror server and client with PM2*
 
 ## Configuration options
 
@@ -93,11 +94,6 @@ Entities will appear automatically in Home Assistant if MQTT autodiscovery is en
 - Check the MagicMirror logs for errors or warnings (run `npm start` `npm run server` or `pm2 restart xx; pm2 logs xx` from your MagicMirror directory and watch the terminal output).
 - Use [MQTT Explorer](https://mqtt-explorer.com/) or a similar tool to easily investigate MQTT messages and topics.
 - Optionally, you can temporarily change the `autodiscoveryTopic` in your config to something like `debug` to see what messages are intended to be sent for Home Assistant autodiscovery.
-
-
-## Known limitations
-
-This module struggles to handle multiple instances of browsers. The MQTT connection is established from the first opening browser, but any change from other browser instances can update the MQTT status, which may lead to inconsistent state reporting. This is usually not a problem in normal use and especially occurs when debugging is done. Simply opening and closing a browser instance does not cause any harm.
 
 
 ## Developer commands

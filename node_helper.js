@@ -19,6 +19,25 @@ module.exports = NodeHelper.create({
 
     this.monitorValue = 'unknown';
     this.brightnessValue = 0;
+
+    const nsp = this.io.of('/MMM-HomeAssistant');
+    nsp.on('connection', (socket) => {
+      console.log('[MMM-HomeAssistant] Socket connected:', socket.id);
+      this.clients[socket.id] = true;
+
+      socket.on('disconnect', () => {
+        console.log('[MMM-HomeAssistant] Socket disconnected:', socket.id);
+        delete this.clients[socket.id];
+        if (Object.keys(this.clients).length === 0) {
+          // No clients connected, disconnect from MQTT
+          if (this.client) {
+            console.log('[MMM-HomeAssistant] No clients connected, disconnecting from MQTT.');
+            this.client.end();
+            this.client = null;
+          }
+        }
+      });
+    });
   },
 
   connectMQTT: function () {
@@ -84,9 +103,9 @@ module.exports = NodeHelper.create({
     }
     this.client.subscribe(topics, (err, granted) => {
       if (err) {
-      console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
+        console.error('[MMM-HomeAssistant] Failed to subscribe to set topics:', err);
       } else {
-      console.log('[MMM-HomeAssistant] Subscribed to set topics:', granted.map(g => g.topic).join(', '));
+        console.log('[MMM-HomeAssistant] Subscribed to set topics:', granted.map(g => g.topic).join(', '));
       }
     });
 
