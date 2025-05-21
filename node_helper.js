@@ -235,9 +235,14 @@ module.exports = NodeHelper.create({
       const sys = await si.system();
       const baseboard = await si.baseboard();
 
+      const uniqueId = (baseboard.serial || sys.serial + '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(-8)
+        .toLowerCase();
+
       const deviceJson = {
         device: {
-          ids: ['ea334450945afc'],
+          ids: [uniqueId],
           name: this.config.deviceName,
           mf: sys.manufacturer || baseboard.manufacturer || 'unknown',
           mdl: sys.model || baseboard.model || '',
@@ -363,7 +368,7 @@ module.exports = NodeHelper.create({
       };
 
       pollMonitorStatus();
-      setInterval(pollMonitorStatus, 2000);
+      setInterval(pollMonitorStatus, 5000);
     }
   },
 
