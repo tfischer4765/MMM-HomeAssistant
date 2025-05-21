@@ -152,7 +152,7 @@ module.exports = NodeHelper.create({
         console.error(`[MMM-HomeAssistant] Error executing monitor command:`, error);
         return;
       }
-
+      this.monitorValue = payload;
       this.publishStates();
     });
   },
@@ -313,7 +313,6 @@ module.exports = NodeHelper.create({
 
   watchEndpoints: function () {
     if (this.config.monitorStatusCommand) {
-      let lastMonitorValue = this.monitorValue;
 
       const pollMonitorStatus = () => {
         exec(this.config.monitorStatusCommand, (error, stdout, stderr) => {
@@ -324,15 +323,15 @@ module.exports = NodeHelper.create({
           const trimmed = stdout.trim().toLowerCase();
           // Interpret "true" as ON, "false" as OFF
           const newValue = (trimmed === 'true' || trimmed === '1') ? 'ON' : 'OFF';
-          if (newValue !== lastMonitorValue) {
+          if (newValue !== this.monitorValue) {
             this.monitorValue = newValue;
-            lastMonitorValue = newValue;
             this.publishStates();
           }
         });
       };
 
-      setInterval(pollMonitorStatus, 1000);
+      pollMonitorStatus();
+      setInterval(pollMonitorStatus, 2000);
     }
   },
 
