@@ -50,14 +50,14 @@ To use this module, add it to the modules array in the `config/config.js` file:
     config: {
         mqttServer: 'mqtt://localhost',
         mqttPort: 1883,
-        username: 'mqtt_username'
+        username: 'mqtt_username',
         password: 'mqtt_password',
         deviceName: 'My MagicMirror',
         autodiscoveryTopic: 'homeassistant',
         monitorControl: true,
         brightnessControl: true,
         moduleControl: true,
-        monitorStatusCommand: 'xrandr --query | awk \'/Screen/ {print ($8 > 320) ? "true" : "false"}\''
+        monitorStatusCommand: 'xrandr --query | awk \'/Screen/ {print ($8 > 320) ? "true" : "false"}\'',
         monitorOnCommand: 'xrandr -d :0 --output HDMI-1 --auto --rotate right',
         monitorOffCommand: 'xrandr -d :0 --output HDMI-1 --off',
         pm2ProcessName: 'mm',
