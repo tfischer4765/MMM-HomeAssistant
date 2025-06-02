@@ -89,13 +89,74 @@ To use this module, add it to the modules array in the `config/config.js` file:
 
 Entities will appear automatically in Home Assistant if MQTT autodiscovery is enabled. You can control your MagicMirror from the Home Assistant dashboard or automations.
 
+## Setting up MQTT on Home Assistant
+
+### Installation of MQTT integration
+
+Navigate to **Settings -> Integrations** and activate the MQTT integration, if it isn't active yet. See [MQTT Integration](https://www.home-assistant.io/integrations/mqtt/) for detailed instructions. It is recommended that you use the official Mosquitto addon.
+
+### Credential creation
+
+In Home Assistant, Mosquitto leverages HA users for authorization. Navigate to **Settings -> People** and create a new user (not person). The credentials of that user is what you will put into your module configuration.
+
+### Autodiscovery
+
+The HomeAssistant MQTT integration will automatically discover any device that posts MQTT messages in the correct format to a preconfigured topic. By default, that topic is `homeassistant`. There is no need to change it unless you have a specific requirement to do so.
+
+Autodiscovery usually happens within seconds of the device posting to the topic. 
+
+### Configuration for HA
+
+| Option                | Suggested value             | Explanation                                                                                                              |
+|-----------------------|-----------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `mqttServer`          | `mqtt://homeassistant`      | If you are running the default Mosquitto, the DNS name by which you access your home assistand UI is the correct value. |
+| `mqttPort`            | `1883`                      | By default, HomeAssistant Mosquitto uses the default ports for MQTT, so this should be left at the default value.                                                                                                              |
+| `username`            | `your mqtt user's login`    | Must be set, HA Mosquitto does not support anonymous access.                                                             |
+| `password`            | `your mqtt user's password` | Must be set, HA Mosquitto does not support anonymous access.                                                             |
+| `deviceName`          | `My MagicMirror`            | This will be the device name registered in HomeAssistant. Entity names are auto-generated from this.                                |
+| `autodiscoveryTopic`  | `homeassistant`             | 'homeassistant' is the default in HA. Unless you changed it, you should leave it at the default.                         |
+
+### Example configuration
+
+```js
+{
+    module: 'MMM-HomeAssistant',
+    config: {
+        mqttServer: 'mqtt://homeassistant',
+        mqttPort: 1883,
+        username: 'magicmirror',
+        password: '<your password>',
+        deviceName: 'Bathroom mirror',
+        autodiscoveryTopic: 'homeassistant',
+        monitorControl: true,
+        brightnessControl: true,
+        moduleControl: true,
+        monitorStatusCommand: 'xrandr -d :0 --query | awk \'/Screen/ {print ($8 > 320) ? "true" : "false"}\'',
+        monitorOnCommand: 'echo "on 0"|cec-client -s',
+        monitorOffCommand: 'echo "standby 0"|cec-client -s',
+    }
+}
+```
+*Example config for a typical HomeAssistant installation*
+
 ## Troubleshooting
 
 - Open your browser's developer console to check for JavaScript errors or warnings.
-- Check the MagicMirror logs for errors or warnings (run `npm start` `npm run server` or `pm2 restart xx; pm2 logs xx` from your MagicMirror directory and watch the terminal output).
+- Check the MagicMirror logs for errors or warnings (run `npm start` `npm run server` or `pm2 restart xx; pm2 logs xx` from your MagicMirror directory and watch the terminal output). It can help to comment out all modules but MMM-HomeAssistant in the config.
+- Check the logs for messages. All log messages from this module are prefixed by the string `[MMM-HomeAssistant]` for ease of filtering.
 - Use [MQTT Explorer](https://mqtt-explorer.com/) or a similar tool to easily investigate MQTT messages and topics.
 - Optionally, you can temporarily change the `autodiscoveryTopic` in your config to something like `debug` to see what messages are intended to be sent for Home Assistant autodiscovery.
 
+## Solving monitor control issues
+
+- If the default `xrandr` command leaves your monitor with an ugly "no input" message, you can try installing the `cec-utils` package and try `echo "standby 0"|cec-client -s` and `echo "on 0"|cec-client -s` to control your monitor directly (depending on your monitor, this may or may not work)
+- If the above cec-client commands result in a blank screen after turning the monitor back on, add the following to your `/boot/firmware/config.txt` under the general section to force output of a hdmi signal even if autodetection of a display fails:
+
+```ini
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=16
+```
 
 ## Developer commands
 
