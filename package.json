@@ -28,6 +28,7 @@
     "globals": "^15.9.0"
   },
   "dependencies": {
-    "mqtt": "^5.12.1"
+    "mqtt": "^5.12.1",
+    "systeminformation": "^5.27.1"
   }
 }
