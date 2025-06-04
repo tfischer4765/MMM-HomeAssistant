@@ -29,6 +29,7 @@ In your terminal, go to your [MagicMirror²][mm] Module folder and clone MMM-Hom
 ```bash
 cd ~/MagicMirror/modules
 git clone https://github.com/ambarusa/MMM-HomeAssistant/
+cd MMM-HomeAssistant
 npm install
 ```
 
